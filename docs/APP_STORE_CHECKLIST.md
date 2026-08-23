@@ -1,0 +1,24 @@
+# App Store Release Checklist
+
+- [ ] Benzersiz Bundle ID belirle (`com.folio.wallet` placeholder'ını değiştir).
+- [ ] Apple Developer App ID oluştur.
+- [ ] Xcode Signing & Capabilities içinde doğru Team seç.
+- [ ] App Store Connect uygulama kaydını oluştur.
+- [ ] Version/build number güncelle.
+- [ ] iOS deployment target 15.5 veya üzerini doğrula.
+- [ ] `NSCameraUsageDescription`, `NSMicrophoneUsageDescription` ve `NSPhotoLibraryUsageDescription` metinlerini gerçek ürün davranışına göre kontrol et.
+- [ ] Gerçek iPhone’da canlı receipt camera, flaş, gallery fallback ve OCR akışını test et.
+- [ ] Dark/light mode test et.
+- [ ] Face ID / cihaz kilidi aç-kapat, iptal ve arka plandan dönüş senaryolarını test et.
+- [ ] Dynamic text / accessibility test et.
+- [ ] Empty/loading/error states test et.
+- [ ] Privacy Policy URL hazırla.
+- [ ] App Privacy cevaplarını gerçek build'e göre doldur.
+- [ ] Eğer hesap sistemi eklenirse account deletion akışı ekle.
+- [ ] App screenshots / preview / subtitle / keywords hazırla.
+- [ ] Support URL ve marketing URL ekle.
+- [ ] `flutter analyze` temiz.
+- [ ] `flutter test` temiz.
+- [ ] `flutter build ipa --release` başarılı.
+- [ ] TestFlight internal test yap.
+- [ ] Store review için demo/review notes gerekiyorsa hazırla.

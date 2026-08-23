@@ -1,0 +1,4 @@
+#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"
+#include "Generated.xcconfig"
+// ML Kit pods exclude arm64 from the simulator; keep only i386 so Apple Silicon iOS 26+ simulators work.
+EXCLUDED_ARCHS[sdk=iphonesimulator*]=i386
