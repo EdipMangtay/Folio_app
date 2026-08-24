@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' show Rect;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:folio_wallet/data/services/pdf_statement_reader.dart';
 import 'package:folio_wallet/data/services/statement_parser.dart';
 import 'package:folio_wallet/domain/models/transaction_record.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
@@ -162,6 +163,8 @@ List<int> buildReceiptsPdf() {
 }
 
 void main() {
+  _diagnosticPrivacy();
+
   test('a column-based PDF statement is read like a spreadsheet', () async {
     final List<int> bytes = buildStatementPdf(
       titleBlock: <String>[
@@ -372,5 +375,26 @@ void main() {
 
     expect(result.isSuccess, isFalse);
     expect(result.transactions, isEmpty);
+  });
+}
+
+void _diagnosticPrivacy() {
+  test('the diagnostic report hides personal details', () {
+    final String report = PdfStatementReader.describe(buildReceiptsPdf(), lineLimit: 40);
+
+    // The fixture draws a "Borçlu Ad" label followed by a name on the next line.
+    expect(report, isNot(contains('AD SOYAD')));
+    expect(report, contains('[kişisel bilgi gizlendi]'));
+    // No digit survives in the masked text itself. The line index and word
+    // count that prefix each row are the reader's own numbering, not content.
+    final List<String> maskedTexts = report
+        .split('\n')
+        .where((String line) => RegExp(r'^\d+ \| \d+ kelime \| ').hasMatch(line))
+        .map((String line) => line.split('| ').last)
+        .toList();
+    expect(maskedTexts, isNotEmpty);
+    for (final String text in maskedTexts) {
+      expect(RegExp(r'\d').hasMatch(text), isFalse, reason: 'maskelenmemiş rakam: $text');
+    }
   });
 }

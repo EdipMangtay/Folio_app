@@ -509,16 +509,44 @@ abstract final class PdfStatementReader {
       }
     }
 
-    report.writeln('--- satırlar $lineOffset..${lineOffset + lineLimit} (rakamlar maskeli) ---');
+    report.writeln('--- satırlar $lineOffset..${lineOffset + lineLimit} (maskeli) ---');
     int index = lineOffset;
+    bool previousWasPersonalLabel = false;
     for (final _Line line in lines.skip(lineOffset).take(lineLimit)) {
-      report.writeln('$index | ${line.words.length} kelime | ${_mask(line.text)}');
+      // A personal label is often followed by its value on the next line, and
+      // that value carries no label of its own to recognise it by.
+      final String masked =
+          previousWasPersonalLabel ? '[kişisel bilgi gizlendi]' : _mask(line.text);
+      previousWasPersonalLabel = _isPersonalLabel(line.text);
+      report.writeln('$index | ${line.words.length} kelime | $masked');
       index++;
     }
     return report.toString();
   }
 
-  static String _mask(String value) => value.replaceAll(RegExp(r'\d'), '#');
+  /// Labels whose value identifies a person rather than a transaction. The
+  /// value is dropped entirely, because masking digits is not enough for a
+  /// name or an address.
+  static final RegExp _personalLabel = RegExp(
+    r'^(BORCLU|ALACAKLI|MUSTERI|GONDEREN|ALICI)?\s*'
+    r'(AD|ADI|ADRES|SOYAD|UNVAN|IBAN|TCKN|YKN|VKN|HESAP NO|KART NO|TELEFON|E-?POSTA)\b',
+  );
+
+  /// Masks a line for sharing: every digit becomes `#`, and any line carrying
+  /// personal details is replaced with a placeholder.
+  static bool _isPersonalLabel(String value) {
+    final String canonical = _canonical(value).replaceAll(RegExp(r'[:/]'), ' ').trim();
+    return _personalLabel.hasMatch(canonical);
+  }
+
+  static String _mask(String value) {
+    if (_isPersonalLabel(value)) return '[kişisel bilgi gizlendi]';
+    // A bare IBAN or a long digit run on its own line has no label to match on.
+    if (RegExp(r'^TR[\s\d]{10,}$', caseSensitive: false).hasMatch(value.trim())) {
+      return '[kişisel bilgi gizlendi]';
+    }
+    return value.replaceAll(RegExp(r'\d'), '#');
+  }
 }
 
 class _Word {
