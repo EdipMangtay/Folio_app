@@ -8,12 +8,13 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 /// statements produce, so all of the column mapping, sign handling and summary
 /// filtering in [StatementParser] applies unchanged.
 ///
-/// Two strategies, in order:
-///   1. Find the table header and read every following line by the horizontal
-///      position of its words. This reconstructs the real columns and is what
-///      most bank PDFs allow.
-///   2. If no header exists, fall back to reading one transaction per line and
-///      *verifying* which trailing number is the amount rather than guessing.
+/// A PDF has no columns, only words at coordinates, and no two banks lay their
+/// tables out the same way. So rather than trusting one interpretation, the
+/// reader builds several — each plausible header line, at several column-gap
+/// widths, plus a header-less line-by-line reading — and scores every one by
+/// how many rows actually come out as a date, a description and an amount in
+/// separate columns. The best scoring interpretation wins; if none produces a
+/// usable row the document is rejected instead of guessed at.
 ///
 /// Uses syncfusion_flutter_pdf, which is free under the Syncfusion Community
 /// License for individuals and small teams.
@@ -37,8 +38,20 @@ abstract final class PdfStatementReader {
     'CREDIT',
   ];
 
+  /// Header candidates are limited so a long document cannot turn into a
+  /// combinatorial search.
+  static const int _maxHeaderCandidates = 8;
+
+  /// Multipliers on the text height used to decide where one header label ends
+  /// and the next column begins. Tight layouts need a small gap, airy ones a
+  /// large one, and the score decides which reading was right.
+  static const List<double> _gapFactors = <double>[0.8, 1.4, 2.2, 3.4];
+
   static final RegExp _leadingDate = RegExp(r'^(\d{1,2}[./-]\d{1,2}[./-]\d{2,4})\s+');
-  static final RegExp _money = RegExp(r'^\(?-?\d{1,3}(?:[.\s]\d{3})*(?:,\d{1,2})?-?\)?$|^\(?-?\d+(?:[.,]\d{1,2})?-?\)?$');
+  static final RegExp _anyDate = RegExp(r'\d{1,2}[./-]\d{1,2}[./-]\d{2,4}');
+  static final RegExp _money =
+      RegExp(r'^\(?-?\d{1,3}(?:[.\s]\d{3})*(?:,\d{1,2})?-?\)?$|^\(?-?\d+(?:[.,]\d{1,2})?-?\)?$');
+  static final RegExp _letters = RegExp(r'[A-Za-zÇĞİÖŞÜçğıöşü]{3,}');
 
   /// Throws when the document holds no usable statement table.
   static List<List<String>> readRows(List<int> bytes) {
@@ -47,13 +60,23 @@ abstract final class PdfStatementReader {
       throw const FormatException('No text layer');
     }
 
-    final List<List<String>> columnRows = _readByColumns(lines);
-    if (columnRows.length > 1) return columnRows;
+    List<List<String>>? best;
+    int bestScore = 0;
+    for (final List<List<String>> candidate in _interpretations(lines)) {
+      final int score = _score(candidate);
+      if (score > bestScore) {
+        bestScore = score;
+        best = candidate;
+      }
+    }
 
-    final List<List<String>> lineRows = _readByLines(lines);
-    if (lineRows.length > 1) return lineRows;
+    if (best == null) throw const FormatException('No statement table found');
+    return best;
+  }
 
-    throw const FormatException('No statement table found');
+  static Iterable<List<List<String>>> _interpretations(List<_Line> lines) sync* {
+    yield* _columnInterpretations(lines);
+    yield _readByLines(lines);
   }
 
   static List<_Line> _extractLines(List<int> bytes) {
@@ -64,8 +87,6 @@ abstract final class PdfStatementReader {
           .map(
             (TextLine line) => _Line(
               text: line.text.trim(),
-              pageIndex: line.pageIndex,
-              top: line.bounds.top,
               words: line.wordCollection
                   .where((TextWord word) => word.text.trim().isNotEmpty)
                   .map((TextWord word) => _Word(word.text.trim(), word.bounds))
@@ -79,20 +100,72 @@ abstract final class PdfStatementReader {
     }
   }
 
-  // ---------------------------------------------------------------- columns
+  // ----------------------------------------------------------------- scoring
 
-  static List<List<String>> _readByColumns(List<_Line> lines) {
-    final int headerIndex = lines.indexWhere(_looksLikeHeader);
-    if (headerIndex < 0) return const <List<String>>[];
+  /// Counts the rows that would survive [StatementParser]: a date, an amount
+  /// and a description, each in its own column. Returns 0 when the header row
+  /// itself cannot be mapped, because the parser would reject it anyway.
+  static int _score(List<List<String>> rows) {
+    if (rows.length < 2) return 0;
 
-    final _Line header = lines[headerIndex];
-    final List<_Column> columns = _columnsOf(header);
-    if (columns.length < 2) return const <List<String>>[];
+    final List<String> header = rows.first.map(_canonical).toList(growable: false);
+    final int descriptionColumn =
+        header.indexWhere((String cell) => _descriptionWords.any(cell.contains));
+    final int moneyColumn = header.indexWhere((String cell) => _moneyWords.any(cell.contains));
+    if (descriptionColumn < 0 || moneyColumn < 0 || descriptionColumn == moneyColumn) {
+      return 0;
+    }
 
+    int usable = 0;
+    for (final List<String> row in rows.skip(1)) {
+      final int date = row.indexWhere((String cell) => _anyDate.hasMatch(cell));
+      if (date < 0) continue;
+      final int money = row.lastIndexWhere(_isMoney);
+      if (money < 0 || money == date) continue;
+      final bool described = <int>[
+        for (int i = 0; i < row.length; i++)
+          if (i != date && i != money) i,
+      ].any((int i) => _letters.hasMatch(row[i]));
+      if (described) usable++;
+    }
+    return usable;
+  }
+
+  static bool _isMoney(String cell) {
+    final String value = cell.replaceAll(' ', '');
+    return value.isNotEmpty && _money.hasMatch(value);
+  }
+
+  // ----------------------------------------------------------------- columns
+
+  static Iterable<List<List<String>>> _columnInterpretations(List<_Line> lines) sync* {
+    int candidates = 0;
+    for (int i = 0; i < lines.length && candidates < _maxHeaderCandidates; i++) {
+      if (!_looksLikeHeader(lines[i])) continue;
+      candidates++;
+      for (final double factor in _gapFactors) {
+        final List<_Column> columns = _columnsOf(lines[i], factor);
+        if (columns.length < 2) continue;
+        yield _distributeAll(lines, headerIndex: i, columns: columns);
+      }
+    }
+  }
+
+  static bool _looksLikeHeader(_Line line) {
+    final String canonical = _canonical(line.text);
+    return _descriptionWords.any(canonical.contains) &&
+        _moneyWords.any(canonical.contains) &&
+        line.words.length >= 2;
+  }
+
+  static List<List<String>> _distributeAll(
+    List<_Line> lines, {
+    required int headerIndex,
+    required List<_Column> columns,
+  }) {
     final List<List<String>> rows = <List<String>>[
       columns.map((_Column column) => column.label).toList(growable: false),
     ];
-
     for (final _Line line in lines.skip(headerIndex + 1)) {
       final List<String> row = _distribute(line, columns);
       if (row.every((String cell) => cell.isEmpty)) continue;
@@ -101,22 +174,16 @@ abstract final class PdfStatementReader {
     return rows;
   }
 
-  static bool _looksLikeHeader(_Line line) {
-    final String canonical = _canonical(line.text);
-    final bool hasDescription = _descriptionWords.any(canonical.contains);
-    final bool hasMoney = _moneyWords.any(canonical.contains);
-    return hasDescription && hasMoney && line.words.length >= 2;
-  }
-
   /// Groups the header's words into column labels. Words belonging to one label
   /// (`İşlem` + `Tarihi`) sit close together; a real column break leaves a gap.
-  static List<_Column> _columnsOf(_Line header) {
+  /// [gapFactor] scales what counts as a break.
+  static List<_Column> _columnsOf(_Line header, double gapFactor) {
     final List<_Word> words = List<_Word>.from(header.words)
       ..sort((_Word a, _Word b) => a.bounds.left.compareTo(b.bounds.left));
 
     final double gapThreshold = math.max(
-      12,
-      words.map((_Word word) => word.bounds.height).reduce(math.max) * 1.4,
+      6,
+      words.map((_Word word) => word.bounds.height).reduce(math.max) * gapFactor,
     );
 
     final List<_Column> columns = <_Column>[];
@@ -165,7 +232,7 @@ abstract final class PdfStatementReader {
     return buckets.map((List<String> bucket) => bucket.join(' ').trim()).toList(growable: false);
   }
 
-  // ------------------------------------------------------------------ lines
+  // ------------------------------------------------------------------- lines
 
   /// One transaction per line: a leading date, a description, then one or more
   /// numbers. When several numbers trail the description the last one is often
@@ -265,6 +332,50 @@ abstract final class PdfStatementReader {
         .replaceAll('Ş', 'S')
         .replaceAll('Ü', 'U');
   }
+
+  /// Describes what the reader saw, for diagnosing a statement that will not
+  /// open. Every digit is masked so the report can be shared safely.
+  static String describe(List<int> bytes) {
+    final List<_Line> lines = _extractLines(bytes);
+    final StringBuffer report = StringBuffer()
+      ..writeln('Satır sayısı: ${lines.length}');
+
+    if (lines.isEmpty) {
+      report.writeln('PDF içinde metin katmanı yok (taranmış olabilir).');
+      return report.toString();
+    }
+
+    final List<int> headerLines = <int>[
+      for (int i = 0; i < lines.length; i++)
+        if (_looksLikeHeader(lines[i])) i,
+    ];
+    report.writeln('Başlık adayı satırlar: $headerLines');
+
+    int bestScore = 0;
+    List<List<String>>? best;
+    for (final List<List<String>> candidate in _interpretations(lines)) {
+      final int score = _score(candidate);
+      if (score > bestScore) {
+        bestScore = score;
+        best = candidate;
+      }
+    }
+    report.writeln('En iyi yorumun puanı: $bestScore');
+    if (best != null) {
+      report.writeln('Bulunan sütunlar: ${best.first}');
+      for (final List<String> row in best.skip(1).take(3)) {
+        report.writeln('  örnek satır: ${row.map(_mask).toList()}');
+      }
+    }
+
+    report.writeln('--- ilk 30 satır (rakamlar maskeli) ---');
+    for (final _Line line in lines.take(30)) {
+      report.writeln('${line.words.length} kelime | ${_mask(line.text)}');
+    }
+    return report.toString();
+  }
+
+  static String _mask(String value) => value.replaceAll(RegExp(r'\d'), '#');
 }
 
 class _Word {
@@ -275,16 +386,9 @@ class _Word {
 }
 
 class _Line {
-  const _Line({
-    required this.text,
-    required this.pageIndex,
-    required this.top,
-    required this.words,
-  });
+  const _Line({required this.text, required this.words});
 
   final String text;
-  final int pageIndex;
-  final double top;
   final List<_Word> words;
 }
 

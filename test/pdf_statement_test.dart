@@ -150,6 +150,32 @@ void main() {
     expect(result.transactions, hasLength(1));
   });
 
+  test('a summary line above the table is not mistaken for the header', () async {
+    // "Donem Ici Islem Tutari" reads like a header — it carries both a
+    // description word and a money word — but it is prose, not a table. The
+    // reader has to score it against the real header and discard it.
+    final List<int> bytes = buildStatementPdf(
+      titleBlock: <String>[
+        'AKBANK T.A.S.',
+        'Donem Ici Islem Tutari Toplami 1.514,40',
+        'Kullanilabilir Limit 24.000,00',
+      ],
+      headers: <String>['Tarih', 'Aciklama', 'Tutar'],
+      rows: <List<String>>[
+        <String>['18.08.2026', 'STARBUCKS', '-230,00'],
+        <String>['19.08.2026', 'MIGROS', '-1.284,40'],
+      ],
+    );
+
+    final StatementParseResult result =
+        await parser.parseNamedBytes(name: 'ekstre.pdf', bytes: bytes);
+
+    expect(result.isSuccess, isTrue);
+    expect(result.transactions, hasLength(2));
+    expect(result.transactions.first.title, 'Starbucks');
+    expect(result.transactions.first.amount, 230);
+  });
+
   test('a headerless statement tells the amount from the running balance', () async {
     // No header row at all, and every line carries both an amount and the
     // balance after it. The reader has to work out which column is which.
