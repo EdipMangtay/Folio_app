@@ -26,6 +26,9 @@ class SubscriptionsScreen extends ConsumerWidget {
           loading: () => const LoadingView(),
           error: (Object error, StackTrace stack) => const Center(child: Text('Abonelikler açılamadı.')),
           data: (WalletSnapshot snapshot) {
+            if (snapshot.subscriptions.isEmpty) {
+              return const _EmptySubscriptions();
+            }
             final double monthly = snapshot.subscriptions.fold<double>(0, (double total, SubscriptionRecord item) => total + item.monthlyAmount);
             final List<SubscriptionRecord> sorted = List<SubscriptionRecord>.from(snapshot.subscriptions)..sort((SubscriptionRecord a, SubscriptionRecord b) => b.monthlyAmount.compareTo(a.monthlyAmount));
             final SubscriptionRecord? largest = sorted.isEmpty ? null : sorted.first;
@@ -56,6 +59,53 @@ class SubscriptionsScreen extends ConsumerWidget {
               ],
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+/// Subscriptions are detected from the transactions themselves, so an empty
+/// list simply means no monthly rhythm has been found yet.
+class _EmptySubscriptions extends StatelessWidget {
+  const _EmptySubscriptions();
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(30),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: PremiumSurface(
+            elevated: true,
+            padding: const EdgeInsets.fromLTRB(22, 26, 22, 26),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Container(
+                  width: 58,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    color: AppColors.soft(theme.brightness),
+                    borderRadius: BorderRadius.circular(19),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(Icons.repeat_rounded, size: 24, color: AppColors.muted(theme.brightness)),
+                ),
+                const SizedBox(height: 18),
+                Text('Tekrarlayan gider bulunamadı', style: theme.textTheme.headlineSmall, textAlign: TextAlign.center),
+                const SizedBox(height: 8),
+                Text(
+                  'Abonelikler işlemlerinden otomatik çıkarılır. Aynı işyerinden art arda '
+                  'en az üç ay, benzer tutarda ödeme görüldüğünde burada listelenir.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

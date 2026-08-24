@@ -1,3 +1,4 @@
+import '../../domain/analytics/subscription_detector.dart';
 import '../../domain/models/budget_record.dart';
 import '../../domain/models/subscription_record.dart';
 import '../../domain/models/transaction_record.dart';
@@ -12,22 +13,27 @@ class WalletRepository {
   Future<void> initialize() => _database.initialize();
 
   Future<WalletSnapshot> load() async {
-    final Future<List<TransactionRecord>> transactionsFuture = _database.getTransactions();
-    final Future<List<BudgetRecord>> budgetsFuture = _database.getBudgets();
-    final Future<List<SubscriptionRecord>> subscriptionsFuture = _database.getSubscriptions();
+    final List<TransactionRecord> transactions = await _database.getTransactions();
+    final List<BudgetRecord> budgets = await _database.getBudgets();
+    final List<SubscriptionRecord> subscriptions = SubscriptionDetector.detect(transactions);
     return WalletSnapshot(
-      transactions: await transactionsFuture,
-      budgets: await budgetsFuture,
-      subscriptions: await subscriptionsFuture,
+      transactions: transactions,
+      budgets: budgets,
+      subscriptions: subscriptions,
     );
   }
 
   Future<void> saveTransaction(TransactionRecord transaction) =>
       _database.upsertTransaction(transaction);
 
+  Future<void> saveTransactions(Iterable<TransactionRecord> transactions) =>
+      _database.upsertTransactions(transactions);
+
   Future<void> deleteTransaction(String id) => _database.deleteTransaction(id);
 
   Future<void> saveBudget(BudgetRecord budget) => _database.upsertBudget(budget);
 
-  Future<void> resetDemoData() => _database.resetDemoData();
+  Future<void> loadDemoData() => _database.loadDemoData();
+
+  Future<void> clearAllData() => _database.clearAllData();
 }

@@ -39,6 +39,9 @@ class DashboardScreen extends ConsumerWidget {
         onRetry: () => ref.read(walletProvider.notifier).refresh(),
       ),
       data: (WalletSnapshot wallet) {
+        if (wallet.transactions.isEmpty) {
+          return FolioBackground(child: _EmptyWallet(userName: userName));
+        }
         final WalletAnalytics analytics = AnalyticsEngine.compute(wallet.transactions);
         return FolioBackground(
           child: FolioScroll(
@@ -519,6 +522,131 @@ class _QuickLink extends StatelessWidget {
           const SizedBox(height: 4),
           Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall),
         ],
+      ),
+    );
+  }
+}
+
+/// Shown before the wallet holds anything. Folio no longer fills a new install
+/// with sample transactions, so the first screen has to offer a way in.
+class _EmptyWallet extends StatelessWidget {
+  const _EmptyWallet({required this.userName});
+
+  final String userName;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return SafeArea(
+      child: Center(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(AppSpacing.page, 20, AppSpacing.page, 40),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                const Align(alignment: Alignment.centerLeft, child: FolioWordmark()),
+                const SizedBox(height: 34),
+                Text(
+                  userName.isEmpty ? 'Hoş geldin' : 'Hoş geldin, $userName',
+                  style: theme.textTheme.headlineLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Cüzdanın henüz boş. Ekstreni aktardığında harcamaların, gelirlerin ve '
+                  'tekrarlayan ödemelerin burada toplanır.',
+                  style: theme.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 26),
+                PremiumSurface(
+                  elevated: true,
+                  padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      Text('Başlamanın üç yolu', style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 16),
+                      _EmptyAction(
+                        icon: Icons.file_upload_outlined,
+                        title: 'Ekstre aktar',
+                        subtitle: 'Bankandan indirdiğin CSV, XLSX veya PDF ekstreyi oku.',
+                        onTap: () => context.push('/statement'),
+                      ),
+                      const SizedBox(height: 10),
+                      _EmptyAction(
+                        icon: Icons.document_scanner_outlined,
+                        title: 'Fiş tara',
+                        subtitle: 'Kameranla fişi okut, tutarı doğrula.',
+                        onTap: () => context.push('/receipt'),
+                      ),
+                      const SizedBox(height: 10),
+                      _EmptyAction(
+                        icon: Icons.science_outlined,
+                        title: 'Örnek veriyle gez',
+                        subtitle: 'Profil › Verilerim bölümünden örnek cüzdanı yükle.',
+                        onTap: () => context.go('/profile'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyAction extends StatelessWidget {
+  const _EmptyAction({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: <Widget>[
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: AppColors.soft(theme.brightness),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              alignment: Alignment.center,
+              child: Icon(icon, size: 19, color: AppColors.accent(theme.brightness)),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(title, style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 3),
+                  Text(subtitle, style: theme.textTheme.bodySmall),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios_rounded, size: 13, color: AppColors.tertiary(theme.brightness)),
+          ],
+        ),
       ),
     );
   }

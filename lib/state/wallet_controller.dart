@@ -36,9 +36,8 @@ class WalletController extends AsyncNotifier<WalletSnapshot> {
   }
 
   Future<void> addTransactions(Iterable<TransactionRecord> transactions) async {
-    for (final TransactionRecord transaction in transactions) {
-      await _repository.saveTransaction(transaction);
-    }
+    if (transactions.isEmpty) return;
+    await _repository.saveTransactions(transactions);
     await refresh();
   }
 
@@ -52,8 +51,13 @@ class WalletController extends AsyncNotifier<WalletSnapshot> {
     await refresh();
   }
 
-  Future<void> resetDemoData() async {
-    await _repository.resetDemoData();
+  Future<void> loadDemoData() async {
+    await _repository.loadDemoData();
+    await refresh();
+  }
+
+  Future<void> clearAllData() async {
+    await _repository.clearAllData();
     await refresh();
   }
 }

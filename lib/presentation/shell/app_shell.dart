@@ -110,7 +110,7 @@ class AppShell extends StatelessWidget {
                 _AddMenuItem(
                   icon: Icons.file_upload_outlined,
                   title: 'Ekstre aktar',
-                  subtitle: 'CSV, PDF veya XLSX',
+                  subtitle: 'CSV, XLSX veya PDF',
                   tone: AppColors.blueGray,
                   onTap: () {
                     Navigator.of(sheetContext).pop();

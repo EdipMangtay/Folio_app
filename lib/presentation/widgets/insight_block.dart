@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
-import '../../core/theme/app_spacing.dart';
 import '../../domain/models/insight.dart';
 import 'premium_surface.dart';
 import 'section_header.dart';

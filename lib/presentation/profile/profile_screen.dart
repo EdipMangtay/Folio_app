@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,7 +6,10 @@ import 'package:local_auth/local_auth.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../data/services/wallet_exporter.dart';
+import '../../domain/models/wallet_snapshot.dart';
 import '../../state/settings_controller.dart';
+import '../../state/wallet_controller.dart';
 import '../widgets/folio_background.dart';
 import '../widgets/folio_wordmark.dart';
 import '../widgets/premium_surface.dart';
@@ -16,6 +20,8 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final SettingsState settings = ref.watch(settingsProvider);
+    final int transactionCount =
+        ref.watch(walletProvider).value?.transactions.length ?? 0;
     return FolioBackground(
       accentAlignment: const Alignment(-0.95, -0.92),
       child: ListView(
@@ -95,7 +101,8 @@ class ProfileScreen extends ConsumerWidget {
                 const _InfoRow(
                   icon: Icons.lock_outline_rounded,
                   title: 'Cihazında saklanır',
-                  subtitle: 'Finansal kayıtlar bu sürümde yalnızca cihazında tutulur.',
+                  subtitle: 'İşlemlerin telefonundaki uygulama klasöründe tutulur. '
+                      'Hiçbir sunucuya gönderilmez, hesap açman gerekmez.',
                 ),
                 Divider(height: 1, thickness: 0.7, color: Theme.of(context).dividerColor.withValues(alpha: 0.55)),
                 const _InfoRow(
@@ -107,6 +114,42 @@ class ProfileScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 30),
+          const _SectionLabel('VERİLERİM'),
+          const SizedBox(height: 12),
+          PremiumSurface(
+            elevated: true,
+            padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
+            child: Column(
+              children: <Widget>[
+                _SettingsRow(
+                  icon: Icons.ios_share_rounded,
+                  title: 'Verileri dışa aktar',
+                  subtitle: transactionCount == 0
+                      ? 'Dışa aktarılacak işlem yok.'
+                      : '$transactionCount işlemi CSV olarak kaydet; Excel’de açılır, '
+                          'Folio’ya geri aktarılabilir.',
+                  onTap: () => _exportData(context, ref),
+                ),
+                Divider(height: 1, thickness: 0.7, color: Theme.of(context).dividerColor.withValues(alpha: 0.55)),
+                _SettingsRow(
+                  icon: Icons.science_outlined,
+                  title: 'Örnek veriyle dene',
+                  subtitle: 'Kayıtlı işlemlerin silinir, yerine örnek bir cüzdan yüklenir.',
+                  onTap: () => _loadDemoData(context, ref),
+                ),
+                Divider(height: 1, thickness: 0.7, color: Theme.of(context).dividerColor.withValues(alpha: 0.55)),
+                _SettingsRow(
+                  icon: Icons.delete_outline_rounded,
+                  title: 'Tüm verileri sil',
+                  subtitle: transactionCount == 0
+                      ? 'Kayıtlı işlem yok.'
+                      : '$transactionCount işlem cihazından kalıcı olarak silinir.',
+                  destructive: true,
+                  onTap: () => _clearAllData(context, ref),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 28),
           Center(
             child: Text(
@@ -166,6 +209,100 @@ class ProfileScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _exportData(BuildContext context, WidgetRef ref) async {
+    final WalletSnapshot? wallet = ref.read(walletProvider).value;
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    if (wallet == null || wallet.transactions.isEmpty) {
+      messenger.showSnackBar(const SnackBar(content: Text('Dışa aktarılacak işlem yok.')));
+      return;
+    }
+
+    try {
+      final Uri? saved = await FilePicker.saveFile(
+        fileName: WalletExporter.fileName(),
+        bytes: WalletExporter.toCsvBytes(wallet.transactions),
+        mimeType: 'text/csv',
+        dialogTitle: 'Folio verilerini kaydet',
+      );
+      if (saved == null) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('${wallet.transactions.length} işlem dışa aktarıldı.')),
+      );
+    } on Object {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Dosya kaydedilemedi. Farklı bir konum deneyebilirsin.')),
+      );
+    }
+  }
+
+  Future<void> _loadDemoData(BuildContext context, WidgetRef ref) async {
+    final bool confirmed = await _confirm(
+      context,
+      title: 'Örnek veri yüklensin mi?',
+      body: 'Şu anda kayıtlı olan tüm işlemler silinir ve yerlerine örnek bir cüzdan gelir. '
+          'Bu işlem geri alınamaz.',
+      action: 'Örnek veriyi yükle',
+    );
+    if (!confirmed) return;
+    await ref.read(walletProvider.notifier).loadDemoData();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Örnek cüzdan yüklendi.')),
+      );
+    }
+  }
+
+  Future<void> _clearAllData(BuildContext context, WidgetRef ref) async {
+    final WalletSnapshot? wallet = ref.read(walletProvider).value;
+    if (wallet == null || wallet.transactions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Silinecek işlem yok.')),
+      );
+      return;
+    }
+    final bool confirmed = await _confirm(
+      context,
+      title: 'Tüm veriler silinsin mi?',
+      body: '${wallet.transactions.length} işlem cihazından kalıcı olarak silinir. '
+          'Bütçe limitleri varsayılana döner. Bu işlem geri alınamaz.',
+      action: 'Sil',
+      destructive: true,
+    );
+    if (!confirmed) return;
+    await ref.read(walletProvider.notifier).clearAllData();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tüm işlemler silindi.')),
+      );
+    }
+  }
+
+  Future<bool> _confirm(
+    BuildContext context, {
+    required String title,
+    required String body,
+    required String action,
+    bool destructive = false,
+  }) async {
+    final bool? result = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) => AlertDialog(
+        title: Text(title),
+        content: Text(body),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Vazgeç')),
+          FilledButton(
+            style: destructive
+                ? FilledButton.styleFrom(backgroundColor: AppColors.coral)
+                : null,
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(action),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
 }
 
 class _SectionLabel extends StatelessWidget {
