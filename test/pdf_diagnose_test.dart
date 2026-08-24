@@ -14,6 +14,8 @@ import 'package:folio_wallet/data/services/statement_parser.dart';
 /// and dates never appear. What stays readable is the layout: how many words a
 /// line holds and what the column headings are called.
 const String pdfPath = String.fromEnvironment('pdf');
+const int lineLimit = int.fromEnvironment('lines', defaultValue: 30);
+const int lineOffset = int.fromEnvironment('from');
 
 void main() {
   test('describe the statement layout', () async {
@@ -33,7 +35,7 @@ void main() {
     // ignore: avoid_print
     print('\n===== FOLIO PDF TEŞHİS =====\n');
     // ignore: avoid_print
-    print(PdfStatementReader.describe(bytes));
+    print(PdfStatementReader.describe(bytes, lineLimit: lineLimit, lineOffset: lineOffset));
 
     final StatementParseResult result =
         await const StatementParser().parseNamedBytes(name: 'ekstre.pdf', bytes: bytes);

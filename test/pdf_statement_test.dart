@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui' show Rect;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +7,13 @@ import 'package:folio_wallet/domain/models/transaction_record.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 const StatementParser parser = StatementParser();
+
+/// The built-in PDF fonts use WinAnsi encoding, which has no dotless ı and no
+/// İ — a fixture drawn with one would silently lose the very characters these
+/// tests are about. Manrope is already bundled with the app, so it doubles as
+/// a Turkish-capable font for the fixtures.
+PdfFont turkishFont(double size) =>
+    PdfTrueTypeFont(File('assets/fonts/Manrope-Regular.ttf').readAsBytesSync(), size);
 
 /// Draws a statement the way a bank PDF lays one out: a title block, a header
 /// row and right-aligned amounts in fixed columns.
@@ -19,7 +27,7 @@ List<int> buildStatementPdf({
   final PdfDocument document = PdfDocument();
   final PdfPage page = document.pages.add();
   final PdfGraphics graphics = page.graphics;
-  final PdfFont font = PdfStandardFont(PdfFontFamily.helvetica, 10);
+  final PdfFont font = turkishFont(10);
   final List<double> xs = columnX.isNotEmpty
       ? columnX
       : <double>[for (int i = 0; i < headers.length; i++) 20 + i * 120];
@@ -66,15 +74,102 @@ List<int> buildStatementPdf({
   return bytes;
 }
 
+/// Draws a payment receipt (`dekont`) the way a bank does: label column on the
+/// left, a small Hesap/Borç/Alacak ledger, then the description.
+///
+/// [inlineDescription] switches between the two layouts seen in the wild — the
+/// description next to its label, or on the line below it.
+void drawReceipt(
+  PdfGraphics graphics,
+  PdfFont font, {
+  required double y,
+  required String date,
+  required String ownAccount,
+  required String debit,
+  required String credit,
+  required String counterAccount,
+  required String description,
+  required bool inlineDescription,
+}) {
+  void at(double x, double top, String text) =>
+      graphics.drawString(text, font, bounds: Rect.fromLTWH(x, top, 200, 14));
+
+  at(58, y, 'AKBANK');
+  at(58, y + 14, 'Tarih');
+  at(174, y + 14, date);
+  at(58, y + 28, 'Borçlu Ad');
+  at(58, y + 42, 'AD SOYAD');
+
+  at(58, y + 56, 'Hesap');
+  at(174, y + 56, 'Borç');
+  at(316, y + 56, 'Alacak');
+
+  at(58, y + 70, ownAccount);
+  at(174, y + 70, debit);
+  at(316, y + 70, credit);
+
+  at(58, y + 84, counterAccount);
+  at(174, y + 84, credit);
+  at(316, y + 84, debit);
+
+  at(58, y + 98, 'TOPLAM');
+  at(174, y + 98, debit == '0,00' ? credit : debit);
+  at(316, y + 98, debit == '0,00' ? credit : debit);
+
+  at(58, y + 112, 'Yazı İle');
+  if (inlineDescription) {
+    at(58, y + 126, 'Açıklama');
+    at(246, y + 126, description);
+  } else {
+    at(58, y + 126, 'Açıklama');
+    at(246, y + 140, description);
+  }
+}
+
+List<int> buildReceiptsPdf() {
+  final PdfDocument document = PdfDocument();
+  final PdfGraphics graphics = document.pages.add().graphics;
+  final PdfFont font = turkishFont(9);
+
+  drawReceipt(
+    graphics,
+    font,
+    y: 20,
+    date: '18.08.2026',
+    ownAccount: 'MEVDUAT TL',
+    debit: '46,00',
+    credit: '0,00',
+    counterAccount: 'BKM POS SATIS TL',
+    description: 'STARBUCKS BESIKTAS TEMASSIZ',
+    inlineDescription: true,
+  );
+  drawReceipt(
+    graphics,
+    font,
+    y: 200,
+    date: '20.08.2026',
+    ownAccount: 'MEVDUAT TL',
+    debit: '0,00',
+    credit: '1.250,00',
+    counterAccount: 'MUHASEBE TL',
+    description: 'TRENDYOL.COM IADE',
+    inlineDescription: false,
+  );
+
+  final List<int> bytes = document.saveSync();
+  document.dispose();
+  return bytes;
+}
+
 void main() {
   test('a column-based PDF statement is read like a spreadsheet', () async {
     final List<int> bytes = buildStatementPdf(
       titleBlock: <String>[
         'AKBANK T.A.S.',
-        'Hesap Ozeti',
-        'Donem: 01.08.2026 - 31.08.2026',
+        'Hesap Özeti',
+        'Dönem: 01.08.2026 - 31.08.2026',
       ],
-      headers: <String>['Islem Tarihi', 'Aciklama', 'Tutar'],
+      headers: <String>['İşlem Tarihi', 'Açıklama', 'Tutar'],
       rows: <List<String>>[
         <String>['18.08.2026', 'STARBUCKS BESIKTAS', '-230,00'],
         <String>['19.08.2026', 'MIGROS TICARET AS', '-1.284,40'],
@@ -100,7 +195,7 @@ void main() {
 
   test('a balance column does not become the amount', () async {
     final List<int> bytes = buildStatementPdf(
-      headers: <String>['Tarih', 'Aciklama', 'Tutar', 'Bakiye'],
+      headers: <String>['Tarih', 'Açıklama', 'Tutar', 'Bakiye'],
       columnX: const <double>[20, 110, 300, 400],
       rows: <List<String>>[
         <String>['18.08.2026', 'STARBUCKS', '-230,00', '12.400,00'],
@@ -117,7 +212,7 @@ void main() {
 
   test('debit and credit columns split expense from income', () async {
     final List<int> bytes = buildStatementPdf(
-      headers: <String>['Tarih', 'Aciklama', 'Borc', 'Alacak'],
+      headers: <String>['Tarih', 'Açıklama', 'Borç', 'Alacak'],
       columnX: const <double>[20, 110, 300, 400],
       rows: <List<String>>[
         <String>['18.08.2026', 'STARBUCKS', '230,00', ''],
@@ -136,7 +231,7 @@ void main() {
 
   test('footer totals are not imported as transactions', () async {
     final List<int> bytes = buildStatementPdf(
-      headers: <String>['Tarih', 'Aciklama', 'Tutar'],
+      headers: <String>['Tarih', 'Açıklama', 'Tutar'],
       rows: <List<String>>[
         <String>['18.08.2026', 'STARBUCKS', '-230,00'],
       ],
@@ -157,10 +252,10 @@ void main() {
     final List<int> bytes = buildStatementPdf(
       titleBlock: <String>[
         'AKBANK T.A.S.',
-        'Donem Ici Islem Tutari Toplami 1.514,40',
-        'Kullanilabilir Limit 24.000,00',
+        'Dönem İçi İşlem Tutarı Toplamı 1.514,40',
+        'Kullanılabilir Limit 24.000,00',
       ],
-      headers: <String>['Tarih', 'Aciklama', 'Tutar'],
+      headers: <String>['Tarih', 'Açıklama', 'Tutar'],
       rows: <List<String>>[
         <String>['18.08.2026', 'STARBUCKS', '-230,00'],
         <String>['19.08.2026', 'MIGROS', '-1.284,40'],
@@ -217,7 +312,7 @@ void main() {
 
   test('a PDF saved under a .csv name is still read as a PDF', () async {
     final List<int> bytes = buildStatementPdf(
-      headers: <String>['Tarih', 'Aciklama', 'Tutar'],
+      headers: <String>['Tarih', 'Açıklama', 'Tutar'],
       rows: <List<String>>[
         <String>['18.08.2026', 'STARBUCKS', '-230,00'],
       ],
@@ -230,11 +325,43 @@ void main() {
     expect(result.transactions.single.title, 'Starbucks');
   });
 
+  test('a batch of payment receipts is read as individual transactions', () async {
+    final StatementParseResult result =
+        await parser.parseNamedBytes(name: 'Dekont_20260824.pdf', bytes: buildReceiptsPdf());
+
+    expect(result.isSuccess, isTrue);
+    expect(result.transactions, hasLength(2));
+
+    // The customer's own account is debited, so money left: an expense.
+    final TransactionRecord outgoing = result.transactions
+        .firstWhere((TransactionRecord t) => t.type == TransactionType.expense);
+    expect(outgoing.amount, 46);
+    expect(outgoing.title, 'Starbucks');
+    expect(outgoing.date, DateTime(2026, 8, 18));
+
+    // Credited instead, so money arrived: an income.
+    final TransactionRecord incoming = result.transactions
+        .firstWhere((TransactionRecord t) => t.type == TransactionType.income);
+    expect(incoming.amount, 1250);
+    expect(incoming.date, DateTime(2026, 8, 20));
+  });
+
+  test('a receipt description does not run into the next receipt', () async {
+    final StatementParseResult result =
+        await parser.parseNamedBytes(name: 'Dekont.pdf', bytes: buildReceiptsPdf());
+
+    expect(result.isSuccess, isTrue);
+    for (final TransactionRecord transaction in result.transactions) {
+      expect(transaction.title.toUpperCase(), isNot(contains('AKBANK')));
+      expect(transaction.title.toUpperCase(), isNot(contains('TARIH')));
+    }
+  });
+
   test('a PDF without any statement table fails instead of inventing rows', () async {
     final PdfDocument document = PdfDocument();
     document.pages.add().graphics.drawString(
           'Sayin musterimiz, kampanyamizdan haberdar olmak icin subelerimize bekleriz.',
-          PdfStandardFont(PdfFontFamily.helvetica, 12),
+          turkishFont(12),
           bounds: const Rect.fromLTWH(20, 20, 500, 40),
         );
     final List<int> bytes = document.saveSync();

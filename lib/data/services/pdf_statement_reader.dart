@@ -38,6 +38,15 @@ abstract final class PdfStatementReader {
     'CREDIT',
   ];
 
+  /// Account names that identify the customer's own side of a receipt ledger.
+  /// Which side it sits on is what makes the receipt an expense or an income.
+  static const List<String> _ownAccountWords = <String>[
+    'MEVDUAT',
+    'VADESIZ',
+    'MUSTERI',
+    'KMH',
+  ];
+
   /// Header candidates are limited so a long document cannot turn into a
   /// combinatorial search.
   static const int _maxHeaderCandidates = 8;
@@ -76,6 +85,7 @@ abstract final class PdfStatementReader {
 
   static Iterable<List<List<String>>> _interpretations(List<_Line> lines) sync* {
     yield* _columnInterpretations(lines);
+    yield _readReceipts(lines);
     yield _readByLines(lines);
   }
 
@@ -232,6 +242,137 @@ abstract final class PdfStatementReader {
     return buckets.map((List<String> bucket) => bucket.join(' ').trim()).toList(growable: false);
   }
 
+  // ---------------------------------------------------------------- receipts
+
+  /// Reads a file of payment receipts (`dekont`) rather than a statement.
+  ///
+  /// Banks hand these out one transaction at a time and users export them in
+  /// batches, so a single PDF can hold dozens back to back. There is no table
+  /// spanning the document; each receipt repeats the same skeleton:
+  ///
+  ///     Tarih      <date>
+  ///     Hesap      Borç        Alacak      <- a per-receipt ledger table
+  ///     MEVDUAT    + 46,00     0,00        <- the customer's own account
+  ///     BKM POS    0,00        + 46,00
+  ///     TOPLAM     + 46,00     + 46,00
+  ///     Açıklama
+  ///     <merchant>
+  ///
+  /// Whether the customer's account sits on the debit or the credit side is
+  /// what makes the transaction an expense or an income, so the receipts are
+  /// emitted as a Borç/Alacak grid and the ordinary parser takes it from there.
+  static List<List<String>> _readReceipts(List<_Line> lines) {
+    final List<List<String>> rows = <List<String>>[
+      <String>['Tarih', 'Açıklama', 'Borç', 'Alacak'],
+    ];
+    for (int i = 0; i < lines.length; i++) {
+      if (!_isLedgerHeader(lines[i])) continue;
+      final List<String>? receipt = _receiptAt(lines, i);
+      if (receipt != null) rows.add(receipt);
+    }
+    return rows.length > 1 ? rows : const <List<String>>[];
+  }
+
+  static bool _isLedgerHeader(_Line line) {
+    final String canonical = _canonical(line.text);
+    return line.words.length >= 3 &&
+        line.words.length <= 5 &&
+        canonical.contains('BORC') &&
+        canonical.contains('ALACAK');
+  }
+
+  static List<String>? _receiptAt(List<_Line> lines, int headerIndex) {
+    final List<_Column> columns = _columnsOf(lines[headerIndex], 1.4);
+    final int debit = columns.indexWhere((_Column c) => _canonical(c.label).contains('BORC'));
+    final int credit = columns.indexWhere((_Column c) => _canonical(c.label).contains('ALACAK'));
+    if (debit < 0 || credit < 0) return null;
+
+    // The customer's own account carries the direction. It is conventionally
+    // the first row; the named accounts are preferred when present.
+    List<String>? ownAccount;
+    for (int i = headerIndex + 1; i < lines.length && i <= headerIndex + 8; i++) {
+      final String label = _canonical(lines[i].text);
+      if (label.startsWith('TOPLAM') || label.startsWith('YAZI ILE')) break;
+      final List<String> cells = _distribute(lines[i], columns);
+      if (cells.length <= math.max(debit, credit)) continue;
+      if (!_isMoney(_stripSign(cells[debit])) && !_isMoney(_stripSign(cells[credit]))) continue;
+      ownAccount ??= cells;
+      if (_ownAccountWords.any(label.contains)) {
+        ownAccount = cells;
+        break;
+      }
+    }
+    if (ownAccount == null) return null;
+
+    final String debitCell = _stripSign(ownAccount[debit]);
+    final String creditCell = _stripSign(ownAccount[credit]);
+    if (_toDouble(debitCell) == null && _toDouble(creditCell) == null) return null;
+
+    final String date = _receiptDate(lines, headerIndex);
+    if (date.isEmpty) return null;
+
+    final String description = _receiptDescription(lines, headerIndex);
+    if (description.isEmpty) return null;
+
+    return <String>[date, description, debitCell, creditCell];
+  }
+
+  /// Ledger cells arrive as `+ 46,00`; the sign marker is a separate word.
+  static String _stripSign(String cell) =>
+      cell.replaceAll(RegExp(r'^[+\-]\s*'), '').trim();
+
+  static String _receiptDate(List<_Line> lines, int headerIndex) {
+    for (int i = headerIndex; i > 0 && i > headerIndex - 60; i--) {
+      if (!_canonical(lines[i].text).startsWith('TARIH')) continue;
+      final RegExpMatch? here = _anyDate.firstMatch(lines[i].text);
+      if (here != null) return here.group(0)!;
+      // Some receipts put the label on one line and the value on the next.
+      if (i + 1 < lines.length) {
+        final RegExpMatch? next = _anyDate.firstMatch(lines[i + 1].text);
+        if (next != null) return next.group(0)!;
+      }
+    }
+    return '';
+  }
+
+  /// The description follows an `Açıklama` label, sometimes on the same line
+  /// and sometimes below it. Continuation lines are recognised by sharing the
+  /// value's left edge, which is also what stops the description from running
+  /// into the next receipt: that one starts back at the label margin.
+  static String _receiptDescription(List<_Line> lines, int headerIndex) {
+    for (int i = headerIndex; i < lines.length && i <= headerIndex + 12; i++) {
+      if (!_canonical(lines[i].text).startsWith('ACIKLAMA')) continue;
+
+      final List<String> parts = <String>[];
+      double? valueLeft;
+
+      final double labelRight = lines[i].words.first.bounds.right;
+      final List<_Word> inline = lines[i]
+          .words
+          .where((_Word word) => word.bounds.left > labelRight + 2)
+          .toList(growable: false);
+      if (inline.isNotEmpty) {
+        valueLeft = inline.first.bounds.left;
+        parts.add(inline.map((_Word word) => word.text).join(' '));
+      }
+
+      for (int j = i + 1; j < lines.length && j <= i + 3; j++) {
+        if (_isLedgerHeader(lines[j])) break;
+        final String text = lines[j].text.trim();
+        if (text.isEmpty || !_letters.hasMatch(text)) break;
+        final double left = lines[j].words.first.bounds.left;
+        if (valueLeft == null) {
+          valueLeft = left;
+        } else if ((left - valueLeft).abs() > 12) {
+          break;
+        }
+        parts.add(text);
+      }
+      return parts.join(' ').trim();
+    }
+    return '';
+  }
+
   // ------------------------------------------------------------------- lines
 
   /// One transaction per line: a leading date, a description, then one or more
@@ -335,7 +476,7 @@ abstract final class PdfStatementReader {
 
   /// Describes what the reader saw, for diagnosing a statement that will not
   /// open. Every digit is masked so the report can be shared safely.
-  static String describe(List<int> bytes) {
+  static String describe(List<int> bytes, {int lineLimit = 30, int lineOffset = 0}) {
     final List<_Line> lines = _extractLines(bytes);
     final StringBuffer report = StringBuffer()
       ..writeln('Satır sayısı: ${lines.length}');
@@ -368,9 +509,11 @@ abstract final class PdfStatementReader {
       }
     }
 
-    report.writeln('--- ilk 30 satır (rakamlar maskeli) ---');
-    for (final _Line line in lines.take(30)) {
-      report.writeln('${line.words.length} kelime | ${_mask(line.text)}');
+    report.writeln('--- satırlar $lineOffset..${lineOffset + lineLimit} (rakamlar maskeli) ---');
+    int index = lineOffset;
+    for (final _Line line in lines.skip(lineOffset).take(lineLimit)) {
+      report.writeln('$index | ${line.words.length} kelime | ${_mask(line.text)}');
+      index++;
     }
     return report.toString();
   }
