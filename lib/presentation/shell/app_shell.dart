@@ -1,51 +1,166 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
 
+import '../../core/constants/app_constants.dart';
 import '../../core/motion/folio_motion.dart';
 import '../../core/motion/folio_tab_switcher.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../domain/models/transaction_record.dart';
+import '../../domain/tour/tour_step.dart';
+import '../../state/settings_controller.dart';
+import '../../state/tour_controller.dart';
+import '../../state/wallet_controller.dart';
 import '../add/add_transaction_sheet.dart';
+import '../tour/tour_anchor.dart';
+import '../tour/tour_overlay.dart';
 import '../widgets/folio_wordmark.dart';
 
-class AppShell extends StatelessWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({required this.navigationShell, required this.children, super.key});
 
   final StatefulNavigationShell navigationShell;
   final List<Widget> children;
 
-  int get _index => navigationShell.currentIndex;
+  @override
+  ConsumerState<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends ConsumerState<AppShell> {
+  /// Where the current stop's target sits, measured once its tab has settled.
+  Rect? _highlight;
+  int _measuredFor = -1;
+
+  int get _index => widget.navigationShell.currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (!ref.read(settingsProvider).hasSeenOnboarding) {
+        ref.read(tourProvider.notifier).start();
+      }
+    });
+  }
 
   void _goBranch(int index) {
     if (index != _index) HapticFeedback.selectionClick();
-    navigationShell.goBranch(index, initialLocation: index == navigationShell.currentIndex);
+    widget.navigationShell.goBranch(
+      index,
+      initialLocation: index == widget.navigationShell.currentIndex,
+    );
+  }
+
+  /// Puts the shell on the stop's tab, waits for the switch to settle, then
+  /// measures. FolioTabSwitcher animates over FolioMotion.tab, and a rect read
+  /// before that finishes belongs to the outgoing screen.
+  void _prepare(TourState tour) {
+    if (_measuredFor == tour.index) return;
+    _measuredFor = tour.index;
+    final TourStep? step = tour.step;
+
+    // Deferred out of build: goBranch is a navigation, and a navigation
+    // started while the frame is being built is dropped.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      if (step is! TourSpotlightStep) {
+        setState(() => _highlight = null);
+        return;
+      }
+      if (_index != step.tab) _goBranch(step.tab);
+      await Future<void>.delayed(FolioMotion.tab + const Duration(milliseconds: 32));
+      if (!mounted) return;
+      setState(() => _highlight = ref.read(tourTargetRegistryProvider).rectOf(step.target));
+    });
+  }
+
+  Future<void> _finishTour() async {
+    ref.read(tourProvider.notifier).finish();
+    await ref.read(settingsProvider.notifier).completeOnboarding();
+  }
+
+  Future<void> _saveIncome(double amount, String source) async {
+    final String title = source.isEmpty ? 'Maaş' : source;
+    await ref.read(walletProvider.notifier).addTransaction(
+          TransactionRecord(
+            id: const Uuid().v4(),
+            title: title,
+            merchant: title,
+            category: _incomeCategoryFor(source),
+            amount: amount,
+            date: DateTime.now(),
+            type: TransactionType.income,
+            source: TransactionSource.manual,
+            paymentLabel: AppConstants.defaultIncomeLabel,
+          ),
+        );
+    if (mounted) ref.read(tourProvider.notifier).next();
+  }
+
+  static String _incomeCategoryFor(String source) {
+    if (source.isEmpty) return 'Maaş';
+    final String canonical = source.toLowerCase();
+    for (final String category in AppConstants.incomeCategories) {
+      if (canonical.contains(category.toLowerCase())) return category;
+    }
+    return 'Maaş';
   }
 
   @override
   Widget build(BuildContext context) {
-    final double width = MediaQuery.sizeOf(context).width;
-    final Widget tabs = FolioTabSwitcher(currentIndex: _index, children: children);
-    if (width >= 860) return _TabletShell(index: _index, onSelect: _goBranch, child: tabs);
+    final TourState tour = ref.watch(tourProvider);
+    if (tour.running) _prepare(tour);
 
+    final double width = MediaQuery.sizeOf(context).width;
+    final Widget tabs = FolioTabSwitcher(currentIndex: _index, children: widget.children);
     final double dockClearance = 66 + 12 + MediaQuery.paddingOf(context).bottom;
-    return Scaffold(
-      extendBody: true,
-      body: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: EdgeInsets.only(bottom: dockClearance),
-          child: tabs,
+
+    final Widget shell = width >= 860
+        ? _TabletShell(index: _index, onSelect: _goBranch, child: tabs)
+        : Scaffold(
+            extendBody: true,
+            body: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: EdgeInsets.only(bottom: dockClearance),
+                child: tabs,
+              ),
+            ),
+            bottomNavigationBar: SafeArea(
+              minimum: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+              child: _ClassicDock(
+                currentIndex: _index,
+                onTap: _goBranch,
+                onAdd: () => _showAddMenu(context),
+              ),
+            ),
+          );
+
+    final TourStep? step = tour.step;
+    if (step == null) return shell;
+
+    return Stack(
+      children: <Widget>[
+        shell,
+        TourOverlay(
+          step: step,
+          highlight: _highlight,
+          isLast: tour.isLast,
+          onNext: () {
+            if (tour.isLast) {
+              _finishTour();
+            } else {
+              ref.read(tourProvider.notifier).next();
+            }
+          },
+          onSkip: _finishTour,
+          onIncome: _saveIncome,
         ),
-      ),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-        child: _ClassicDock(
-          currentIndex: _index,
-          onTap: _goBranch,
-          onAdd: () => _showAddMenu(context),
-        ),
-      ),
+      ],
     );
   }
 
@@ -154,11 +269,36 @@ class _ClassicDock extends StatelessWidget {
       ),
       child: Row(
         children: <Widget>[
-          Expanded(child: _NavItem(icon: Icons.home_outlined, activeIcon: Icons.home_rounded, label: 'Ana', selected: currentIndex == 0, onTap: () => onTap(0))),
-          Expanded(child: _NavItem(icon: Icons.receipt_long_outlined, activeIcon: Icons.receipt_long_rounded, label: 'İşlemler', selected: currentIndex == 1, onTap: () => onTap(1))),
-          SizedBox(width: 54, child: Center(child: _AddButton(onTap: onAdd))),
-          Expanded(child: _NavItem(icon: Icons.bar_chart_outlined, activeIcon: Icons.bar_chart_rounded, label: 'Analiz', selected: currentIndex == 2, onTap: () => onTap(2))),
-          Expanded(child: _NavItem(icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded, label: 'Profil', selected: currentIndex == 3, onTap: () => onTap(3))),
+          Expanded(
+            child: TourAnchor(
+              target: TourTarget.homeTab,
+              child: _NavItem(icon: Icons.home_outlined, activeIcon: Icons.home_rounded, label: 'Ana', selected: currentIndex == 0, onTap: () => onTap(0)),
+            ),
+          ),
+          Expanded(
+            child: TourAnchor(
+              target: TourTarget.transactionsTab,
+              child: _NavItem(icon: Icons.receipt_long_outlined, activeIcon: Icons.receipt_long_rounded, label: 'İşlemler', selected: currentIndex == 1, onTap: () => onTap(1)),
+            ),
+          ),
+          SizedBox(
+            width: 54,
+            child: Center(
+              child: TourAnchor(target: TourTarget.addButton, child: _AddButton(onTap: onAdd)),
+            ),
+          ),
+          Expanded(
+            child: TourAnchor(
+              target: TourTarget.analyticsTab,
+              child: _NavItem(icon: Icons.bar_chart_outlined, activeIcon: Icons.bar_chart_rounded, label: 'Analiz', selected: currentIndex == 2, onTap: () => onTap(2)),
+            ),
+          ),
+          Expanded(
+            child: TourAnchor(
+              target: TourTarget.profileTab,
+              child: _NavItem(icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded, label: 'Profil', selected: currentIndex == 3, onTap: () => onTap(3)),
+            ),
+          ),
         ],
       ),
     );
@@ -323,11 +463,23 @@ class _TabletShell extends StatelessWidget {
               child: Column(
                 children: <Widget>[
                   const Padding(padding: EdgeInsets.only(top: 20, bottom: 30), child: FolioWordmark(compact: true)),
-                  _RailIcon(icon: Icons.home_rounded, selected: index == 0, onTap: () => onSelect(0)),
-                  _RailIcon(icon: Icons.receipt_long_rounded, selected: index == 1, onTap: () => onSelect(1)),
-                  _RailIcon(icon: Icons.bar_chart_rounded, selected: index == 2, onTap: () => onSelect(2)),
+                  TourAnchor(
+                    target: TourTarget.homeTab,
+                    child: _RailIcon(icon: Icons.home_rounded, selected: index == 0, onTap: () => onSelect(0)),
+                  ),
+                  TourAnchor(
+                    target: TourTarget.transactionsTab,
+                    child: _RailIcon(icon: Icons.receipt_long_rounded, selected: index == 1, onTap: () => onSelect(1)),
+                  ),
+                  TourAnchor(
+                    target: TourTarget.analyticsTab,
+                    child: _RailIcon(icon: Icons.bar_chart_rounded, selected: index == 2, onTap: () => onSelect(2)),
+                  ),
                   const Spacer(),
-                  _RailIcon(icon: Icons.person_outline_rounded, selected: index == 3, onTap: () => onSelect(3)),
+                  TourAnchor(
+                    target: TourTarget.profileTab,
+                    child: _RailIcon(icon: Icons.person_outline_rounded, selected: index == 3, onTap: () => onSelect(3)),
+                  ),
                   const SizedBox(height: 18),
                 ],
               ),

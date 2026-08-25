@@ -44,39 +44,50 @@ class TourOverlay extends StatelessWidget {
     return Semantics(
       container: true,
       explicitChildNodes: true,
-      child: Stack(
-        children: <Widget>[
-          // Blocks everything underneath: the tour drives, so a stray tap must
-          // not take the user somewhere the tour has not reached.
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () {},
-              child: CustomPaint(
-                painter: _ScrimPainter(
-                  cutout: cut,
-                  color: Colors.black.withValues(alpha: 0.62),
-                  ring: AppColors.accent(theme.brightness),
+      // The overlay is mounted as a sibling of the Scaffold, so it carries its
+      // own Material: text fields, ink and buttons all require one above them.
+      child: Material(
+        type: MaterialType.transparency,
+        child: Stack(
+          children: <Widget>[
+            // Blocks everything underneath: the tour drives, so a stray tap must
+            // not take the user somewhere the tour has not reached.
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {},
+                child: CustomPaint(
+                  painter: _ScrimPainter(
+                    cutout: cut,
+                    color: Colors.black.withValues(alpha: 0.62),
+                    ring: AppColors.accent(theme.brightness),
+                  ),
                 ),
               ),
             ),
-          ),
-          if (current is TourFormStep)
-            Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: _FormBubble(step: current, onIncome: onIncome, onSkip: onSkip),
+            if (current is TourFormStep)
+              Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  // Skipping the income step means "no figure, carry on", not
+                  // "end the tour" — that is what Geç on a spotlight does.
+                  child: _FormBubble(
+                    step: current,
+                    onIncome: onIncome,
+                    onSkip: onNext,
+                  ),
+                ),
+              )
+            else
+              _SpotlightBubble(
+                step: current as TourSpotlightStep,
+                cutout: cut,
+                isLast: isLast,
+                onNext: onNext,
+                onSkip: onSkip,
               ),
-            )
-          else
-            _SpotlightBubble(
-              step: current as TourSpotlightStep,
-              cutout: cut,
-              isLast: isLast,
-              onNext: onNext,
-              onSkip: onSkip,
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -85,7 +96,11 @@ class TourOverlay extends StatelessWidget {
 /// Dims everything except the cut-out, and rings the cut-out so the highlight
 /// is a shape and not only a difference in brightness.
 class _ScrimPainter extends CustomPainter {
-  const _ScrimPainter({required this.cutout, required this.color, required this.ring});
+  const _ScrimPainter({
+    required this.cutout,
+    required this.color,
+    required this.ring,
+  });
 
   final Rect? cutout;
   final Color color;
@@ -166,7 +181,11 @@ class _SpotlightBubble extends StatelessWidget {
 }
 
 class _FormBubble extends StatelessWidget {
-  const _FormBubble({required this.step, required this.onIncome, required this.onSkip});
+  const _FormBubble({
+    required this.step,
+    required this.onIncome,
+    required this.onSkip,
+  });
 
   final TourFormStep step;
   final Future<void> Function(double amount, String source) onIncome;

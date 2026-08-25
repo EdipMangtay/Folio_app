@@ -33,13 +33,16 @@ class FakeWallet extends WalletController {
 
 /// Settings without shared_preferences behind them.
 class FakeSettings extends SettingsController {
+  FakeSettings({this.hasSeenOnboarding = false});
+
+  final bool hasSeenOnboarding;
   bool onboardingCompleted = false;
 
   @override
-  SettingsState build() => const SettingsState(
+  SettingsState build() => SettingsState(
         themeMode: ThemeMode.light,
         userName: 'Edip',
-        hasSeenOnboarding: false,
+        hasSeenOnboarding: hasSeenOnboarding,
         privacyLockEnabled: false,
       );
 
