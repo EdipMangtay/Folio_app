@@ -6,7 +6,9 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../domain/analytics/analytics_engine.dart';
+import '../../domain/analytics/month_scope.dart';
 import '../../domain/models/wallet_snapshot.dart';
+import '../../state/month_scope_controller.dart';
 import '../../state/wallet_controller.dart';
 import '../widgets/folio_wordmark.dart';
 import '../widgets/loading_view.dart';
@@ -32,28 +34,32 @@ class _MonthlyReportScreenState extends ConsumerState<MonthlyReportScreen> {
   @override
   Widget build(BuildContext context) {
     final AsyncValue<WalletSnapshot> wallet = ref.watch(walletProvider);
+    final DateTime selectedMonth = ref.watch(selectedMonthProvider);
     return Scaffold(
       body: wallet.when(
         loading: () => const LoadingView(),
         error: (Object error, StackTrace stack) => const Center(child: Text('Rapor açılamadı.')),
         data: (WalletSnapshot snapshot) {
-          final WalletAnalytics analytics = AnalyticsEngine.compute(snapshot.transactions);
+          final WalletAnalytics analytics = AnalyticsEngine.compute(
+            snapshot.transactions,
+            now: MonthScope.anchorFor(selectedMonth, now: DateTime.now()),
+          );
           final String topCategory = analytics.categoryTotals.keys.isEmpty ? '—' : analytics.categoryTotals.keys.first;
           final double topCategoryAmount = analytics.categoryTotals[topCategory] ?? 0;
           final String topMerchant = analytics.merchantTotals.keys.isEmpty ? '—' : analytics.merchantTotals.keys.first;
           final List<_StoryData> stories = <_StoryData>[
             _StoryData(
-              eyebrow: Formatters.month(DateTime.now()).toUpperCase(),
+              eyebrow: Formatters.monthYear(selectedMonth).toUpperCase(),
               title: 'Ayın finansal hikâyesi.',
               body: 'Gelir, gider ve davranışlarının tek bir sakin özeti.',
               accent: AppColors.coffee,
               composition: _StoryComposition.intro,
             ),
-            _StoryData(eyebrow: 'GELİR', metric: Formatters.money(analytics.monthIncome), title: 'bu ay geldi.', accent: AppColors.sage),
+            _StoryData(eyebrow: 'GELİR', metric: Formatters.money(analytics.monthIncome), title: 'bu dönemde geldi.', accent: AppColors.sage),
             _StoryData(
               eyebrow: 'HARCAMA',
               metric: Formatters.money(analytics.monthExpense),
-              title: 'bu ay harcandı.',
+              title: 'bu dönemde harcandı.',
               body: '${analytics.changePercent.abs().toStringAsFixed(1).replaceAll('.', ',')}% geçen aya göre ${analytics.changePercent <= 0 ? 'daha düşük' : 'daha yüksek'}.',
               accent: analytics.changePercent <= 0 ? AppColors.sage : AppColors.coral,
             ),
@@ -61,7 +67,7 @@ class _MonthlyReportScreenState extends ConsumerState<MonthlyReportScreen> {
               eyebrow: 'EN BÜYÜK PAY',
               title: topCategory,
               metric: Formatters.money(topCategoryAmount),
-              body: 'Bu ayın harcama dağılımında ilk sırada.',
+              body: 'Bu dönemin harcama dağılımında ilk sırada.',
               accent: AppColors.category(topCategory),
               composition: _StoryComposition.offset,
             ),

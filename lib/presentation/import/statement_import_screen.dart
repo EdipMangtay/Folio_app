@@ -9,8 +9,10 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/services/import_deduplicator.dart';
 import '../../data/services/statement_parser.dart';
+import '../../domain/analytics/month_scope.dart';
 import '../../domain/models/transaction_record.dart';
 import '../../domain/models/wallet_snapshot.dart';
+import '../../state/month_scope_controller.dart';
 import '../../state/wallet_controller.dart';
 import '../widgets/brand_avatar.dart';
 import '../widgets/folio_background.dart';
@@ -101,6 +103,13 @@ class _StatementImportScreenState extends ConsumerState<StatementImportScreen> {
     if (_transactions.isEmpty) return;
     await ref.read(walletProvider.notifier).addTransactions(_transactions);
     if (!mounted) return;
+
+    // A statement is downloaded once its period has closed, so the imported
+    // figures usually belong to a month the analytics pages are not showing.
+    // Move them onto that period rather than leaving the user on an empty one.
+    final DateTime? period = MonthScope.dominantMonth(_transactions);
+    if (period != null) ref.read(selectedMonthProvider.notifier).select(period);
+
     setState(() => _stage = _ImportStage.imported);
     await Future<void>.delayed(const Duration(milliseconds: 850));
     if (mounted) context.go('/transactions');

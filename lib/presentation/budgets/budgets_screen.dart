@@ -5,8 +5,10 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/utils/formatters.dart';
 import '../../domain/analytics/analytics_engine.dart';
+import '../../domain/analytics/month_scope.dart';
 import '../../domain/models/budget_record.dart';
 import '../../domain/models/wallet_snapshot.dart';
+import '../../state/month_scope_controller.dart';
 import '../../state/wallet_controller.dart';
 import '../widgets/folio_background.dart';
 import '../widgets/loading_view.dart';
@@ -18,6 +20,7 @@ class BudgetsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final AsyncValue<WalletSnapshot> wallet = ref.watch(walletProvider);
+    final DateTime selectedMonth = ref.watch(selectedMonthProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Bütçeler')),
       body: FolioBackground(
@@ -25,7 +28,10 @@ class BudgetsScreen extends ConsumerWidget {
           loading: () => const LoadingView(),
           error: (Object error, StackTrace stack) => const Center(child: Text('Bütçeler açılamadı.')),
           data: (WalletSnapshot snapshot) {
-            final WalletAnalytics analytics = AnalyticsEngine.compute(snapshot.transactions);
+            final WalletAnalytics analytics = AnalyticsEngine.compute(
+              snapshot.transactions,
+              now: MonthScope.anchorFor(selectedMonth, now: DateTime.now()),
+            );
             final double totalLimit = snapshot.budgets.fold<double>(0, (double a, BudgetRecord b) => a + b.limitAmount);
             final double trackedSpend = snapshot.budgets.fold<double>(0, (double a, BudgetRecord b) => a + (analytics.categoryTotals[b.category] ?? 0));
             final double ratio = totalLimit <= 0 ? 0 : trackedSpend / totalLimit;
@@ -33,7 +39,7 @@ class BudgetsScreen extends ConsumerWidget {
               physics: const BouncingScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(AppSpacing.page, 8, AppSpacing.page, 44),
               children: <Widget>[
-                Text('Bu ayın sınırları', style: Theme.of(context).textTheme.headlineLarge),
+                Text('${Formatters.monthYear(selectedMonth)} sınırları', style: Theme.of(context).textTheme.headlineLarge),
                 const SizedBox(height: 8),
                 Text('Bütçeyi kısıt değil, karar desteği olarak kullan.', style: Theme.of(context).textTheme.bodyMedium),
                 const SizedBox(height: 24),

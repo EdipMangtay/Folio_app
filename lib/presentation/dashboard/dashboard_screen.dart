@@ -6,17 +6,21 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/utils/formatters.dart';
 import '../../domain/analytics/analytics_engine.dart';
+import '../../domain/analytics/month_scope.dart';
 import '../../domain/models/subscription_record.dart';
 import '../../domain/models/transaction_record.dart';
 import '../../domain/models/wallet_snapshot.dart';
+import '../../state/month_scope_controller.dart';
 import '../../state/settings_controller.dart';
 import '../../state/wallet_controller.dart';
 import '../widgets/category_spend_row.dart';
+import '../widgets/empty_month_notice.dart';
 import '../widgets/folio_background.dart';
 import '../widgets/folio_page.dart';
 import '../widgets/folio_wordmark.dart';
 import '../widgets/insight_block.dart';
 import '../widgets/loading_view.dart';
+import '../widgets/month_selector.dart';
 import '../widgets/premium_surface.dart';
 import '../widgets/section_header.dart';
 import '../widgets/spending_chart.dart';
@@ -29,6 +33,7 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final AsyncValue<WalletSnapshot> asyncWallet = ref.watch(walletProvider);
+    final DateTime selectedMonth = ref.watch(selectedMonthProvider);
     final String userName = ref.watch(
       settingsProvider.select((SettingsState value) => value.userName),
     );
@@ -42,7 +47,10 @@ class DashboardScreen extends ConsumerWidget {
         if (wallet.transactions.isEmpty) {
           return FolioBackground(child: _EmptyWallet(userName: userName));
         }
-        final WalletAnalytics analytics = AnalyticsEngine.compute(wallet.transactions);
+        final WalletAnalytics analytics = AnalyticsEngine.compute(
+          wallet.transactions,
+          now: MonthScope.anchorFor(selectedMonth, now: DateTime.now()),
+        );
         return FolioBackground(
           child: FolioScroll(
             onRefresh: () => ref.read(walletProvider.notifier).refresh(),
@@ -56,7 +64,14 @@ class DashboardScreen extends ConsumerWidget {
                     children: <Widget>[
                       _TopBar(userName: userName),
                       const SizedBox(height: 30),
-                      _HeroSummary(analytics: analytics),
+                      _HeroSummary(analytics: analytics, month: selectedMonth),
+                      if (EmptyMonthNotice.isNeeded(wallet.transactions, selectedMonth)) ...<Widget>[
+                        const SizedBox(height: 18),
+                        EmptyMonthNotice(
+                          month: selectedMonth,
+                          transactions: wallet.transactions,
+                        ),
+                      ],
                       const SizedBox(height: 28),
                       _RhythmSurface(analytics: analytics),
                       const SizedBox(height: 18),
@@ -133,13 +148,15 @@ class _TopBar extends StatelessWidget {
 }
 
 class _HeroSummary extends StatelessWidget {
-  const _HeroSummary({required this.analytics});
+  const _HeroSummary({required this.analytics, required this.month});
   final WalletAnalytics analytics;
+  final DateTime month;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final DateTime now = DateTime.now();
+    final bool isLiveMonth = month.year == now.year && month.month == now.month;
     final bool down = analytics.changePercent <= 0;
     final Color deltaColor = down ? AppColors.sage : AppColors.terracotta;
 
@@ -148,8 +165,16 @@ class _HeroSummary extends StatelessWidget {
       children: <Widget>[
         Row(
           children: <Widget>[
-            Text(Formatters.month(now).toUpperCase(), style: theme.textTheme.labelMedium),
-            const Spacer(),
+            // Expanded, not Spacer: a Row hands unbounded width to inflexible
+            // children, and the selector needs a real bound to ellipsize
+            // against instead of overflowing on a narrow screen.
+            const Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: MonthSelector(dense: true),
+              ),
+            ),
+            const SizedBox(width: 8),
             Icon(down ? Icons.south_east_rounded : Icons.north_east_rounded, size: 15, color: deltaColor),
             const SizedBox(width: 6),
             Text(
@@ -169,7 +194,7 @@ class _HeroSummary extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'bu ay harcadın',
+          isLiveMonth ? 'bu ay harcadın' : '${Formatters.monthYear(month)} içinde harcadın',
           style: theme.textTheme.bodyLarge?.copyWith(color: AppColors.muted(theme.brightness)),
         ),
         const SizedBox(height: 22),

@@ -5,12 +5,16 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/utils/formatters.dart';
 import '../../domain/analytics/analytics_engine.dart';
+import '../../domain/analytics/month_scope.dart';
 import '../../domain/models/wallet_snapshot.dart';
+import '../../state/month_scope_controller.dart';
 import '../../state/wallet_controller.dart';
 import '../widgets/cash_flow_comparison_chart.dart';
+import '../widgets/empty_month_notice.dart';
 import '../widgets/folio_background.dart';
 import '../widgets/folio_page.dart';
 import '../widgets/loading_view.dart';
+import '../widgets/month_selector.dart';
 import '../widgets/premium_surface.dart';
 import '../widgets/section_header.dart';
 import '../widgets/spending_chart.dart';
@@ -22,11 +26,15 @@ class AnalyticsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final AsyncValue<WalletSnapshot> wallet = ref.watch(walletProvider);
+    final DateTime selectedMonth = ref.watch(selectedMonthProvider);
     return wallet.when(
       loading: () => const LoadingView(),
       error: (Object error, StackTrace stack) => const Center(child: Text('Analiz açılamadı.')),
       data: (WalletSnapshot snapshot) {
-        final WalletAnalytics analytics = AnalyticsEngine.compute(snapshot.transactions);
+        final WalletAnalytics analytics = AnalyticsEngine.compute(
+          snapshot.transactions,
+          now: MonthScope.anchorFor(selectedMonth, now: DateTime.now()),
+        );
         return FolioBackground(
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
@@ -37,11 +45,20 @@ class AnalyticsScreen extends ConsumerWidget {
                 children: <Widget>[
                   Text('Analiz', style: Theme.of(context).textTheme.headlineLarge),
                   const SizedBox(height: 7),
-                  Text('Ayın finansal görünümünü sade ve karşılaştırılabilir şekilde incele.', style: Theme.of(context).textTheme.bodyMedium),
-                  const SizedBox(height: 28),
-                  _OverviewCard(analytics: analytics),
+                  Text('Seçtiğin dönemin finansal görünümünü sade ve karşılaştırılabilir şekilde incele.', style: Theme.of(context).textTheme.bodyMedium),
+                  const SizedBox(height: 14),
+                  const MonthSelector(),
+                  const SizedBox(height: 20),
+                  if (EmptyMonthNotice.isNeeded(snapshot.transactions, selectedMonth)) ...<Widget>[
+                    EmptyMonthNotice(
+                      month: selectedMonth,
+                      transactions: snapshot.transactions,
+                    ),
+                    const SizedBox(height: 18),
+                  ],
+                  _OverviewCard(analytics: analytics, month: selectedMonth),
                   const SizedBox(height: AppSpacing.section),
-                  const SectionHeader(title: 'Harcama eğilimi', subtitle: 'Bu ayın günlük hareketleri ve yumuşatılmış ana trendi.'),
+                  const SectionHeader(title: 'Harcama eğilimi', subtitle: 'Seçili dönemin günlük hareketleri ve yumuşatılmış ana trendi.'),
                   const SizedBox(height: 14),
                   PremiumSurface(
                     elevated: true,
@@ -55,7 +72,7 @@ class AnalyticsScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.section),
-                  const SectionHeader(title: 'Nakit akışı', subtitle: 'Gelir, harcama ve ay sonunda kalan tutar.'),
+                  const SectionHeader(title: 'Nakit akışı', subtitle: 'Seçili dönemin geliri, harcaması ve sonunda kalan tutar.'),
                   const SizedBox(height: 14),
                   PremiumSurface(
                     elevated: true,
@@ -76,7 +93,7 @@ class AnalyticsScreen extends ConsumerWidget {
                     child: analytics.categoryTotals.isEmpty
                         ? const Padding(
                             padding: EdgeInsets.symmetric(vertical: 12),
-                            child: Text('Bu ay henüz kategori dağılımı yok.'),
+                            child: Text('Bu dönemde kategori dağılımı yok.'),
                           )
                         : SpendingCompositionChart(
                             categoryTotals: analytics.categoryTotals,
@@ -100,19 +117,25 @@ class AnalyticsScreen extends ConsumerWidget {
 }
 
 class _OverviewCard extends StatelessWidget {
-  const _OverviewCard({required this.analytics});
+  const _OverviewCard({required this.analytics, required this.month});
   final WalletAnalytics analytics;
+  final DateTime month;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final DateTime now = DateTime.now();
+    final bool isLiveMonth = month.year == now.year && month.month == now.month;
     return PremiumSurface(
       elevated: true,
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text('BU AY', style: theme.textTheme.labelMedium),
+          Text(
+            isLiveMonth ? 'BU AY' : Formatters.monthYear(month).toUpperCase(),
+            style: theme.textTheme.labelMedium,
+          ),
           const SizedBox(height: 12),
           FittedBox(
             fit: BoxFit.scaleDown,
