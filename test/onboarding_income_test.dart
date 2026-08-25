@@ -120,7 +120,37 @@ void main() {
 
     expect(wallet.added, isEmpty);
     expect(settings.onboardingCompleted, isFalse);
-    expect(find.byType(SnackBar), findsOneWidget);
+    expect(find.text('Bir tutar gir.'), findsOneWidget);
+  });
+
+  testWidgets('the refusal never covers the way out of the step', (WidgetTester tester) async {
+    // A snackbar sat over the bottom of the screen naming the very button it
+    // was hiding. The message belongs under the field it is about.
+    await _openOnboarding(tester);
+    await _goToIncomeStep(tester);
+
+    await tester.tap(find.text('Kaydet ve başla'));
+    await _settle(tester);
+
+    expect(find.byType(SnackBar), findsNothing);
+
+    // Still reachable: tapping it finishes the tour.
+    await tester.tap(find.text('Şimdilik geç'));
+    await _settle(tester);
+    expect(settings.onboardingCompleted, isTrue);
+  });
+
+  testWidgets('typing clears the refusal', (WidgetTester tester) async {
+    await _openOnboarding(tester);
+    await _goToIncomeStep(tester);
+
+    await tester.tap(find.text('Kaydet ve başla'));
+    await _settle(tester);
+    expect(find.text('Bir tutar gir.'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).first, '5000');
+    await _settle(tester);
+    expect(find.text('Bir tutar gir.'), findsNothing);
   });
 
   testWidgets('an unreadable amount is refused', (WidgetTester tester) async {
@@ -134,6 +164,7 @@ void main() {
 
     expect(wallet.added, isEmpty);
     expect(settings.onboardingCompleted, isFalse);
+    expect(find.text('Geçerli bir tutar gir.'), findsOneWidget);
   });
 
   testWidgets('a negative amount is refused', (WidgetTester tester) async {
@@ -169,5 +200,35 @@ void main() {
       await _settle(tester);
     }
     expect(find.text('Kaydet ve başla'), findsOneWidget);
+  });
+
+  testWidgets('reduced motion skips the entrance animation entirely', (
+    WidgetTester tester,
+  ) async {
+    // With animations disabled the content must be laid out plainly, not
+    // wrapped in something that fades it in from nothing.
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        FakeAccessibilityFeatures.allOn;
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+
+    await _openOnboarding(tester);
+
+    expect(find.byType(Opacity), findsNothing);
+    expect(find.text('Devam et'), findsOneWidget);
+  });
+
+  testWidgets('the slide is fully arrived once the stagger has run', (
+    WidgetTester tester,
+  ) async {
+    await _openOnboarding(tester);
+    await _goToIncomeStep(tester);
+
+    // Scoped to the slide on screen: the neighbouring page the PageView has
+    // built is legitimately transparent while it is a full page away.
+    for (final Element e in find
+        .ancestor(of: find.text('Gelirini gir.'), matching: find.byType(Opacity))
+        .evaluate()) {
+      expect((e.widget as Opacity).opacity, 1.0);
+    }
   });
 }

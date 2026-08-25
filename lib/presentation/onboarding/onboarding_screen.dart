@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/motion/folio_motion.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/utils/formatters.dart';
@@ -30,15 +33,25 @@ class OnboardingScreen extends ConsumerStatefulWidget {
   ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
+class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
+    with SingleTickerProviderStateMixin {
   final PageController _controller = PageController();
+
+  /// Plays once at launch so the first slide arrives too. Later slides are
+  /// driven by their own position, by which time this has finished.
+  late final AnimationController _intro = AnimationController(
+    vsync: this,
+    duration: FolioMotion.standard + _SlideIn.gap * _SlideIn.steps,
+  )..forward();
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _sourceController = TextEditingController();
   int _page = 0;
   bool _saving = false;
+  String? _amountError;
 
   @override
   void dispose() {
+    _intro.dispose();
     _controller.dispose();
     _amountController.dispose();
     _sourceController.dispose();
@@ -53,17 +66,20 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Future<void> _saveIncomeAndFinish() async {
     if (_saving) return;
 
+    // The refusal belongs under the field it is about. A snackbar sits over the
+    // bottom of the screen, which is exactly where "Şimdilik geç" lives — it
+    // hid the button it was telling the user to press.
+    final bool blank = _amountController.text.trim().isEmpty;
     final double? amount = Formatters.parseMoneyInput(_amountController.text);
     if (amount == null || amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Gelir tutarını gir, ya da “Şimdilik geç” ile atla.'),
-        ),
-      );
+      setState(() => _amountError = blank ? 'Bir tutar gir.' : 'Geçerli bir tutar gir.');
       return;
     }
 
-    setState(() => _saving = true);
+    setState(() {
+      _amountError = null;
+      _saving = true;
+    });
     final String source = _sourceController.text.trim();
     final String title = source.isEmpty ? 'Maaş' : source;
 
@@ -125,6 +141,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         visual: _IncomeForm(
           amountController: _amountController,
           sourceController: _sourceController,
+          errorText: _amountError,
+          onAmountChanged: () {
+            if (_amountError != null) setState(() => _amountError = null);
+          },
         ),
       ),
     ];
@@ -164,29 +184,53 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: <Widget>[
-                          SizedBox(height: 250, child: Center(child: data.visual)),
+                          _SlideIn(
+                            page: _controller,
+                            intro: _intro,
+                            index: index,
+                            step: 0,
+                            child: SizedBox(height: 250, child: Center(child: data.visual)),
+                          ),
                           const SizedBox(height: 30),
-                          Text(
-                            data.eyebrow,
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.labelMedium,
+                          _SlideIn(
+                            page: _controller,
+                            intro: _intro,
+                            index: index,
+                            step: 1,
+                            child: Text(
+                              data.eyebrow,
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.labelMedium,
+                            ),
                           ),
                           const SizedBox(height: 13),
-                          Text(
-                            data.title,
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineLarge
-                                ?.copyWith(fontSize: 35, height: 1.08),
+                          _SlideIn(
+                            page: _controller,
+                            intro: _intro,
+                            index: index,
+                            step: 2,
+                            child: Text(
+                              data.title,
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineLarge
+                                  ?.copyWith(fontSize: 35, height: 1.08),
+                            ),
                           ),
                           const SizedBox(height: 16),
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 410),
-                            child: Text(
-                              data.body,
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.bodyLarge,
+                          _SlideIn(
+                            page: _controller,
+                            intro: _intro,
+                            index: index,
+                            step: 3,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 410),
+                              child: Text(
+                                data.body,
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.bodyLarge,
+                              ),
                             ),
                           ),
                         ],
@@ -253,6 +297,77 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 }
 
+/// Fades and lifts one element of a slide into place.
+///
+/// Progress comes from how near the slide is to being centred, not from a
+/// discrete "is showing" flag. A flag leaves the page the PageView has already
+/// built sitting at zero opacity — a blank sheet for the whole of a swipe
+/// towards it — and snaps it into view when the index finally flips. Reading
+/// the position instead means an element is exactly as arrived as its slide is.
+///
+/// The pieces land in reading order: visual, label, headline, paragraph.
+///
+/// Only paint is animated, never layout, so nothing reflows mid-slide.
+class _SlideIn extends StatelessWidget {
+  const _SlideIn({
+    required this.child,
+    required this.page,
+    required this.intro,
+    required this.index,
+    required this.step,
+  });
+
+  final Widget child;
+  final PageController page;
+
+  /// One-shot launch animation, so the first slide arrives rather than
+  /// simply being there.
+  final Animation<double> intro;
+
+  /// Which slide this element belongs to.
+  final int index;
+
+  /// Position in the stagger, counted from the top of the slide.
+  final int step;
+
+  /// How much of the travel each following element waits out.
+  static const double phase = 0.08;
+  static const int steps = 3;
+  static const Duration gap = Duration(milliseconds: 40);
+
+  double _progress() {
+    final double current = page.hasClients && page.positions.length == 1
+        ? (page.page ?? page.initialPage.toDouble())
+        : page.initialPage.toDouble();
+    final double distance = (current - index).abs().clamp(0.0, 1.0);
+    return 1 - distance;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (FolioMotion.reduce(context)) return child;
+
+    return AnimatedBuilder(
+      animation: Listenable.merge(<Listenable>[page, intro]),
+      child: child,
+      builder: (BuildContext context, Widget? inner) {
+        final double base = _progress() < intro.value ? _progress() : intro.value;
+        final double start = step * phase;
+        final double local = ((base - start) / (1 - start)).clamp(0.0, 1.0);
+        final double eased = FolioMotion.enter.transform(local);
+
+        return Opacity(
+          opacity: eased,
+          child: Transform.translate(
+            offset: Offset(0, (1 - eased) * 16),
+            child: inner,
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _OnboardingData {
   const _OnboardingData({
     required this.eyebrow,
@@ -269,10 +384,17 @@ class _OnboardingData {
 
 /// The one step of the tour that is a control rather than a picture.
 class _IncomeForm extends StatelessWidget {
-  const _IncomeForm({required this.amountController, required this.sourceController});
+  const _IncomeForm({
+    required this.amountController,
+    required this.sourceController,
+    required this.onAmountChanged,
+    this.errorText,
+  });
 
   final TextEditingController amountController;
   final TextEditingController sourceController;
+  final VoidCallback onAmountChanged;
+  final String? errorText;
 
   @override
   Widget build(BuildContext context) {
@@ -293,9 +415,11 @@ class _IncomeForm extends StatelessWidget {
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               textInputAction: TextInputAction.next,
               style: theme.textTheme.headlineSmall,
-              decoration: const InputDecoration(
+              onChanged: (_) => onAmountChanged(),
+              decoration: InputDecoration(
                 hintText: '0',
                 suffixText: '₺',
+                errorText: errorText,
               ),
             ),
             const SizedBox(height: 18),
