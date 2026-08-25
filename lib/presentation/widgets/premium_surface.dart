@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 
-/// A refined warm surface with better tonal separation.
+/// A refined surface with tonal separation — paper in light, anthracite in dark.
 class PremiumSurface extends StatelessWidget {
   const PremiumSurface({
     required this.child,
@@ -43,7 +43,7 @@ class PremiumSurface extends StatelessWidget {
         colors: <Color>[
           fill,
           Color.alphaBlend(
-            (dark ? Colors.white : AppColors.soft(theme.brightness)).withValues(alpha: dark ? 0.025 : 0.16),
+            (dark ? Colors.white : AppColors.soft(theme.brightness)).withValues(alpha: dark ? 0.035 : 0.16),
             fill,
           ),
         ],
@@ -51,7 +51,7 @@ class PremiumSurface extends StatelessWidget {
       boxShadow: elevated
           ? <BoxShadow>[
               BoxShadow(
-                color: Colors.black.withValues(alpha: dark ? 0.18 : 0.045),
+                color: Colors.black.withValues(alpha: dark ? 0.42 : 0.045),
                 blurRadius: dark ? 28 : 22,
                 offset: const Offset(0, 10),
               ),

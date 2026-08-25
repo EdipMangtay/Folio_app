@@ -146,7 +146,7 @@ class _ClassicDock extends StatelessWidget {
         border: Border.all(color: theme.dividerColor, width: 0.8),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: Colors.black.withValues(alpha: dark ? 0.22 : 0.055),
+            color: Colors.black.withValues(alpha: dark ? 0.45 : 0.055),
             blurRadius: 24,
             offset: const Offset(0, 10),
           ),
@@ -198,7 +198,7 @@ class _AddButtonState extends State<_AddButton> {
               color: AppColors.accent(theme.brightness),
               borderRadius: BorderRadius.circular(15),
             ),
-            child: Icon(Icons.add_rounded, color: AppColors.elevated(theme.brightness), size: 24),
+            child: Icon(Icons.add_rounded, color: AppColors.canvas(theme.brightness), size: 24),
           ),
         ),
       ),
@@ -340,7 +340,7 @@ class _TabletShell extends StatelessWidget {
       floatingActionButton: FloatingActionButton(
         onPressed: () => showAddTransactionSheet(context),
         backgroundColor: AppColors.accent(theme.brightness),
-        foregroundColor: AppColors.elevated(theme.brightness),
+        foregroundColor: AppColors.canvas(theme.brightness),
         elevation: 1,
         child: const Icon(Icons.add_rounded),
       ),

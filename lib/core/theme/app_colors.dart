@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Folio V8 — premium warm palette with stronger contrast and cleaner accents.
+/// Folio V8 — warm paper in light, nocturnal black / anthracite in dark.
 abstract final class AppColors {
   // Light layers.
   static const Color canvasLight = Color(0xFFF8F4ED);
@@ -12,21 +12,22 @@ abstract final class AppColors {
   static const Color tertiaryLight = Color(0xFFA48F7A);
   static const Color lineLight = Color(0x2136261B);
 
-  // Dark layers.
-  static const Color canvasDark = Color(0xFF14100D);
-  static const Color surfaceDark = Color(0xFF1D1713);
-  static const Color elevatedDark = Color(0xFF261E19);
-  static const Color softDark = Color(0xFF322822);
-  static const Color inkDark = Color(0xFFF7F0E8);
-  static const Color mutedDark = Color(0xFFC9B9AB);
-  static const Color tertiaryDark = Color(0xFF9C8A7C);
-  static const Color lineDark = Color(0x26FFFFFF);
+  // Dark layers — OLED black with cool anthracite lifts. No brown.
+  static const Color canvasDark = Color(0xFF070708);
+  static const Color surfaceDark = Color(0xFF111113);
+  static const Color elevatedDark = Color(0xFF18181C);
+  static const Color softDark = Color(0xFF232328);
+  static const Color inkDark = Color(0xFFF4F4F6);
+  static const Color mutedDark = Color(0xFF9C9CA5);
+  static const Color tertiaryDark = Color(0xFF6F6F77);
+  static const Color lineDark = Color(0x1FFFFFFF);
 
-  // Brand accent — richer espresso bronze.
+  // Brand accent — espresso in light, platinum metal in dark.
   static const Color coffee = Color(0xFF8E6646);
   static const Color coffeeBright = Color(0xFFD0B08C);
   static const Color coffeeSoft = Color(0xFFF1E4D5);
-  static const Color coffeeDarkSoft = Color(0xFF392D24);
+  static const Color platinum = Color(0xFFC7C3BB);
+  static const Color platinumSoft = Color(0xFF1C1C21);
 
   // Supporting semantic/category tones.
   static const Color sage = Color(0xFF64866A);
@@ -51,8 +52,8 @@ abstract final class AppColors {
   static Color elevated(Brightness brightness) => brightness == Brightness.dark ? elevatedDark : elevatedLight;
   static Color soft(Brightness brightness) => brightness == Brightness.dark ? softDark : softLight;
   static Color line(Brightness brightness) => brightness == Brightness.dark ? lineDark : lineLight;
-  static Color accent(Brightness brightness) => brightness == Brightness.dark ? coffeeBright : coffee;
-  static Color accentSoft(Brightness brightness) => brightness == Brightness.dark ? coffeeDarkSoft : coffeeSoft;
+  static Color accent(Brightness brightness) => brightness == Brightness.dark ? platinum : coffee;
+  static Color accentSoft(Brightness brightness) => brightness == Brightness.dark ? platinumSoft : coffeeSoft;
 
   static Color category(String category) {
     switch (category) {

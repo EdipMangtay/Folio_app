@@ -23,7 +23,7 @@ abstract final class AppTheme {
     final ColorScheme scheme = ColorScheme(
       brightness: brightness,
       primary: accent,
-      onPrimary: dark ? AppColors.inkLight : Colors.white,
+      onPrimary: dark ? AppColors.canvasDark : Colors.white,
       secondary: AppColors.sage,
       onSecondary: Colors.white,
       error: AppColors.terracotta,

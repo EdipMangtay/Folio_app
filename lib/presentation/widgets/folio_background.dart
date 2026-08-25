@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 
-/// Subtle premium background — airy in light mode, warm in dark mode.
+/// Subtle premium background — airy paper in light, nocturnal black in dark.
 class FolioBackground extends StatelessWidget {
   const FolioBackground({required this.child, super.key, this.accentAlignment = const Alignment(0.84, -0.92)});
 
@@ -24,11 +24,14 @@ class FolioBackground extends StatelessWidget {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: <Color>[
-            Color.alphaBlend(soft.withValues(alpha: dark ? 0.14 : 0.18), canvas),
+            Color.alphaBlend(
+              (dark ? Colors.white : soft).withValues(alpha: dark ? 0.028 : 0.18),
+              canvas,
+            ),
             canvas,
             canvas,
           ],
-          stops: const <double>[0, 0.18, 1],
+          stops: const <double>[0, 0.22, 1],
         ),
       ),
       child: Stack(
@@ -40,9 +43,9 @@ class FolioBackground extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: RadialGradient(
                     center: accentAlignment,
-                    radius: dark ? 1.0 : 0.92,
+                    radius: dark ? 0.88 : 0.92,
                     colors: <Color>[
-                      accent.withValues(alpha: dark ? 0.08 : 0.085),
+                      accent.withValues(alpha: dark ? 0.045 : 0.085),
                       Colors.transparent,
                     ],
                   ),
