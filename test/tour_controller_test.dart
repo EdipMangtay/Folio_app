@@ -25,6 +25,33 @@ void main() {
       expect(tabs, <int>{0, 1, 2, 3});
     });
 
+    test('points inside the pages, not only at the tabs', () {
+      // A tour that only names tabs never shows where anything is done.
+      final Set<TourTarget> targets = <TourTarget>{
+        for (final TourStep step in kTourSteps)
+          if (step is TourSpotlightStep) step.target,
+      };
+      expect(targets, containsAll(<TourTarget>[
+        TourTarget.periodSelector,
+        TourTarget.incomeMetric,
+        TourTarget.transactionFilters,
+        TourTarget.addButton,
+      ]));
+    });
+
+    test('an in-page stop is on the tab that page belongs to', () {
+      const Map<TourTarget, int> owner = <TourTarget, int>{
+        TourTarget.periodSelector: 0,
+        TourTarget.incomeMetric: 0,
+        TourTarget.transactionFilters: 1,
+      };
+      for (final TourStep step in kTourSteps) {
+        if (step is TourSpotlightStep && owner.containsKey(step.target)) {
+          expect(step.tab, owner[step.target], reason: '${step.title}');
+        }
+      }
+    });
+
     test('every stop says something', () {
       for (final TourStep step in kTourSteps) {
         final String title =

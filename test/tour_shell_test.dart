@@ -172,13 +172,19 @@ void main() {
     await tester.tap(find.text('Şimdilik geç'));
     await _settle(tester);
 
-    // The first spotlight stop points at the home tab, so the highlight must
-    // be the rect of the widget anchored under that name.
+    // The branch screens here are stand-ins, so only the dock's own targets
+    // exist. Walk to the first stop that names one.
+    const TourTarget expected = TourTarget.homeTab;
+    final int index = kTourSteps.indexWhere(
+      (TourStep step) => step is TourSpotlightStep && step.target == expected,
+    );
+    for (int i = 1; i < index; i++) {
+      await _advance(tester);
+    }
+
     final TourOverlay overlay = tester.widget<TourOverlay>(find.byType(TourOverlay));
     final Rect anchored = tester.getRect(
-      find.byWidgetPredicate(
-        (Widget w) => w is TourAnchor && w.target == TourTarget.homeTab,
-      ),
+      find.byWidgetPredicate((Widget w) => w is TourAnchor && w.target == expected),
     );
     expect(overlay.highlight, isNotNull);
     expect((overlay.highlight!.center - anchored.center).distance, lessThan(1));

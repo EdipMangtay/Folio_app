@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:folio_wallet/core/theme/app_theme.dart';
 import 'package:folio_wallet/domain/models/transaction_record.dart';
+import 'package:folio_wallet/domain/tour/tour_step.dart';
+import 'package:folio_wallet/presentation/tour/tour_anchor.dart';
 import 'package:folio_wallet/presentation/analytics/analytics_screen.dart';
 import 'package:folio_wallet/presentation/dashboard/dashboard_screen.dart';
 import 'package:folio_wallet/state/settings_controller.dart';
@@ -118,5 +120,24 @@ void main() {
     await _settle(tester);
 
     expect(find.text('Yeni gelir'), findsOneWidget);
+  });
+
+  testWidgets('the dashboard offers the controls the tour points at', (
+    WidgetTester tester,
+  ) async {
+    // The tour highlights these by name; if the screen stops anchoring them,
+    // those stops silently lose their cut-out.
+    await _open(tester, const DashboardScreen(), transactions: july);
+
+    for (final TourTarget target in <TourTarget>[
+      TourTarget.periodSelector,
+      TourTarget.incomeMetric,
+    ]) {
+      expect(
+        find.byWidgetPredicate((Widget w) => w is TourAnchor && w.target == target),
+        findsOneWidget,
+        reason: '$target çapası ana sayfada yok',
+      );
+    }
   });
 }

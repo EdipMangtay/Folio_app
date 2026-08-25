@@ -17,6 +17,8 @@ Future<void> _pump(
   required TourStep step,
   Rect? highlight,
   bool isLast = false,
+  int position = 1,
+  int total = 6,
   VoidCallback? onNext,
   VoidCallback? onSkip,
 }) async {
@@ -32,6 +34,8 @@ Future<void> _pump(
           step: step,
           highlight: highlight,
           isLast: isLast,
+          position: position,
+          total: total,
           onNext: onNext ?? () {},
           onSkip: onSkip ?? () {},
           onIncome: (double a, String s) async {},
@@ -71,6 +75,20 @@ void main() {
       tester.getSize(find.widgetWithText(FilledButton, 'İleri')).height,
       greaterThanOrEqualTo(44),
     );
+  });
+
+  testWidgets('a spotlight stop says how far along the tour is', (
+    WidgetTester tester,
+  ) async {
+    await _pump(
+      tester,
+      step: _spot,
+      highlight: const Rect.fromLTWH(10, 800, 80, 50),
+      position: 3,
+      total: 9,
+    );
+
+    expect(find.text('3/9'), findsOneWidget);
   });
 
   testWidgets('the last stop offers Bitir instead of İleri', (WidgetTester tester) async {
@@ -129,6 +147,8 @@ void main() {
                 step: _spot,
                 highlight: const Rect.fromLTWH(10, 800, 80, 50),
                 isLast: false,
+                position: 2,
+                total: 6,
                 onNext: () {},
                 onSkip: () {},
                 onIncome: (double a, String s) async {},

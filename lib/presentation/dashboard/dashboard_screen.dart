@@ -7,6 +7,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/utils/formatters.dart';
 import '../../domain/analytics/analytics_engine.dart';
 import '../../domain/analytics/month_scope.dart';
+import '../../domain/tour/tour_step.dart';
 import '../../domain/models/subscription_record.dart';
 import '../../domain/models/transaction_record.dart';
 import '../../domain/models/wallet_snapshot.dart';
@@ -21,6 +22,7 @@ import '../widgets/folio_page.dart';
 import '../widgets/folio_wordmark.dart';
 import '../widgets/insight_block.dart';
 import '../widgets/loading_view.dart';
+import '../tour/tour_anchor.dart';
 import '../widgets/month_selector.dart';
 import '../widgets/premium_surface.dart';
 import '../widgets/section_header.dart';
@@ -58,7 +60,12 @@ class DashboardScreen extends ConsumerWidget {
             slivers: <Widget>[
               SliverToBoxAdapter(
                 child: FolioPage(
-                  padding: const EdgeInsets.fromLTRB(AppSpacing.page, 10, AppSpacing.page, 24),
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.page,
+                    10,
+                    AppSpacing.page,
+                    24,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
@@ -66,7 +73,10 @@ class DashboardScreen extends ConsumerWidget {
                       _TopBar(userName: userName),
                       const SizedBox(height: 30),
                       _HeroSummary(analytics: analytics, month: selectedMonth),
-                      if (EmptyMonthNotice.isNeeded(wallet.transactions, selectedMonth)) ...<Widget>[
+                      if (EmptyMonthNotice.isNeeded(
+                        wallet.transactions,
+                        selectedMonth,
+                      )) ...<Widget>[
                         const SizedBox(height: 18),
                         EmptyMonthNotice(
                           month: selectedMonth,
@@ -129,11 +139,16 @@ class _TopBar extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.soft(theme.brightness),
                 shape: BoxShape.circle,
-                border: Border.all(color: theme.dividerColor.withValues(alpha: 0.78), width: 0.8),
+                border: Border.all(
+                  color: theme.dividerColor.withValues(alpha: 0.78),
+                  width: 0.8,
+                ),
               ),
               child: Center(
                 child: Text(
-                  userName.isEmpty ? 'F' : userName.substring(0, 1).toUpperCase(),
+                  userName.isEmpty
+                      ? 'F'
+                      : userName.substring(0, 1).toUpperCase(),
                   style: theme.textTheme.labelLarge?.copyWith(
                     color: AppColors.ink(theme.brightness),
                     fontWeight: FontWeight.w600,
@@ -172,11 +187,20 @@ class _HeroSummary extends StatelessWidget {
             const Expanded(
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: MonthSelector(dense: true),
+                // Anchored here and not in the analysis page's copy: both
+                // branches stay alive, and the tour means this one.
+                child: TourAnchor(
+                  target: TourTarget.periodSelector,
+                  child: MonthSelector(dense: true),
+                ),
               ),
             ),
             const SizedBox(width: 8),
-            Icon(down ? Icons.south_east_rounded : Icons.north_east_rounded, size: 15, color: deltaColor),
+            Icon(
+              down ? Icons.south_east_rounded : Icons.north_east_rounded,
+              size: 15,
+              color: deltaColor,
+            ),
             const SizedBox(width: 6),
             Text(
               '%${analytics.changePercent.abs().toStringAsFixed(1).replaceAll('.', ',')}',
@@ -195,8 +219,12 @@ class _HeroSummary extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          isLiveMonth ? 'bu ay harcadın' : '${Formatters.monthYear(month)} içinde harcadın',
-          style: theme.textTheme.bodyLarge?.copyWith(color: AppColors.muted(theme.brightness)),
+          isLiveMonth
+              ? 'bu ay harcadın'
+              : '${Formatters.monthYear(month)} içinde harcadın',
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: AppColors.muted(theme.brightness),
+          ),
         ),
         const SizedBox(height: 22),
         PremiumSurface(
@@ -205,21 +233,29 @@ class _HeroSummary extends StatelessWidget {
           child: Row(
             children: <Widget>[
               Expanded(
-                child: _HeroMetric(
-                  label: 'Gelir',
-                  value: Formatters.money(analytics.monthIncome),
-                  // Everything that reports what is left is income minus
-                  // expense, so the figure people need to correct first is
-                  // this one. Tapping it goes straight to the income form.
-                  onTap: () => showAddTransactionSheet(
-                    context,
-                    initialType: TransactionType.income,
+                child: TourAnchor(
+                  target: TourTarget.incomeMetric,
+                  child: _HeroMetric(
+                    label: 'Gelir',
+                    value: Formatters.money(analytics.monthIncome),
+                    // Everything that reports what is left is income minus
+                    // expense, so the figure people need to correct first is
+                    // this one. Tapping it goes straight to the income form.
+                    onTap: () => showAddTransactionSheet(
+                      context,
+                      initialType: TransactionType.income,
+                    ),
                   ),
                 ),
               ),
               Container(width: 1, height: 38, color: theme.dividerColor),
               const SizedBox(width: 16),
-              Expanded(child: _HeroMetric(label: 'Sende kaldı', value: Formatters.money(analytics.savings))),
+              Expanded(
+                child: _HeroMetric(
+                  label: 'Sende kaldı',
+                  value: Formatters.money(analytics.savings),
+                ),
+              ),
             ],
           ),
         ),
@@ -246,8 +282,11 @@ class _HeroMetric extends StatelessWidget {
             Text(label, style: theme.textTheme.bodySmall),
             if (onTap != null) ...<Widget>[
               const SizedBox(width: 5),
-              Icon(Icons.add_circle_outline_rounded,
-                  size: 13, color: AppColors.muted(theme.brightness)),
+              Icon(
+                Icons.add_circle_outline_rounded,
+                size: 13,
+                color: AppColors.muted(theme.brightness),
+              ),
             ],
           ],
         ),
@@ -255,7 +294,12 @@ class _HeroMetric extends StatelessWidget {
         FittedBox(
           alignment: Alignment.centerLeft,
           fit: BoxFit.scaleDown,
-          child: Text(value, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
+          child: Text(
+            value,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
       ],
     );
@@ -287,12 +331,17 @@ class _RhythmSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final List<double> last7 = analytics.dailySeries
-        .skip(analytics.dailySeries.length > 7 ? analytics.dailySeries.length - 7 : 0)
+        .skip(
+          analytics.dailySeries.length > 7
+              ? analytics.dailySeries.length - 7
+              : 0,
+        )
         .map((DailySpendPoint point) => point.amount)
         .toList(growable: false);
     final double recentAverage = last7.isEmpty
         ? 0
-        : last7.fold<double>(0, (double sum, double value) => sum + value) / last7.length;
+        : last7.fold<double>(0, (double sum, double value) => sum + value) /
+              last7.length;
     double peak = 0;
     for (final DailySpendPoint point in analytics.dailySeries) {
       if (point.amount > peak) peak = point.amount;
@@ -306,7 +355,10 @@ class _RhythmSurface extends StatelessWidget {
         children: <Widget>[
           Text('Günlük harcama', style: theme.textTheme.headlineSmall),
           const SizedBox(height: 5),
-          Text('Seçili dönemde her günün harcaması. Kesikli çizgi günlük ortalaman.', style: theme.textTheme.bodySmall),
+          Text(
+            'Seçili dönemde her günün harcaması. Kesikli çizgi günlük ortalaman.',
+            style: theme.textTheme.bodySmall,
+          ),
           const SizedBox(height: 18),
           SpendingChart(
             key: ValueKey<String>(
@@ -320,9 +372,19 @@ class _RhythmSurface extends StatelessWidget {
           const SizedBox(height: 13),
           Row(
             children: <Widget>[
-              Expanded(child: _InlineMetric(label: '7 gün ortalaması', value: Formatters.money(recentAverage))),
+              Expanded(
+                child: _InlineMetric(
+                  label: '7 gün ortalaması',
+                  value: Formatters.money(recentAverage),
+                ),
+              ),
               const SizedBox(width: 18),
-              Expanded(child: _InlineMetric(label: 'En yüksek gün', value: Formatters.money(peak))),
+              Expanded(
+                child: _InlineMetric(
+                  label: 'En yüksek gün',
+                  value: Formatters.money(peak),
+                ),
+              ),
             ],
           ),
         ],
@@ -347,7 +409,12 @@ class _InlineMetric extends StatelessWidget {
         FittedBox(
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
-          child: Text(value, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+          child: Text(
+            value,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
       ],
     );
@@ -365,8 +432,8 @@ class _BalancePanel extends StatelessWidget {
     final String summary = analytics.financialScore >= 80
         ? 'Gelir ve gider ritmin dengeli ilerliyor.'
         : analytics.financialScore >= 65
-            ? 'Denge iyi; birkaç kategori daha yakından izlenebilir.'
-            : 'Bu ay gider yoğunluğu daha yüksek seyrediyor.';
+        ? 'Denge iyi; birkaç kategori daha yakından izlenebilir.'
+        : 'Bu ay gider yoğunluğu daha yüksek seyrediyor.';
 
     return PremiumSurface(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
@@ -379,7 +446,9 @@ class _BalancePanel extends StatelessWidget {
                 width: 70,
                 height: 70,
                 decoration: BoxDecoration(
-                  color: tone.withValues(alpha: theme.brightness == Brightness.dark ? 0.14 : 0.09),
+                  color: tone.withValues(
+                    alpha: theme.brightness == Brightness.dark ? 0.14 : 0.09,
+                  ),
                   borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
                 ),
                 alignment: Alignment.center,
@@ -388,8 +457,18 @@ class _BalancePanel extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      Text('${analytics.financialScore}', style: theme.textTheme.headlineMedium?.copyWith(color: tone)),
-                      Text('Denge', style: theme.textTheme.labelSmall?.copyWith(color: tone)),
+                      Text(
+                        '${analytics.financialScore}',
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          color: tone,
+                        ),
+                      ),
+                      Text(
+                        'Denge',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: tone,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -399,9 +478,17 @@ class _BalancePanel extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text('Finansal denge', style: theme.textTheme.headlineSmall),
+                    Text(
+                      'Finansal denge',
+                      style: theme.textTheme.headlineSmall,
+                    ),
                     const SizedBox(height: 6),
-                    Text(summary, style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.muted(theme.brightness))),
+                    Text(
+                      summary,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: AppColors.muted(theme.brightness),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -414,9 +501,15 @@ class _BalancePanel extends StatelessWidget {
               height: 6,
               child: Stack(
                 children: <Widget>[
-                  ColoredBox(color: AppColors.soft(theme.brightness), child: const SizedBox.expand()),
+                  ColoredBox(
+                    color: AppColors.soft(theme.brightness),
+                    child: const SizedBox.expand(),
+                  ),
                   FractionallySizedBox(
-                    widthFactor: (analytics.financialScore / 100).clamp(0.0, 1.0),
+                    widthFactor: (analytics.financialScore / 100).clamp(
+                      0.0,
+                      1.0,
+                    ),
                     child: ColoredBox(color: tone),
                   ),
                 ],
@@ -426,9 +519,19 @@ class _BalancePanel extends StatelessWidget {
           const SizedBox(height: 14),
           Row(
             children: <Widget>[
-              Expanded(child: _InlineMetric(label: 'Tasarruf oranı', value: '%${analytics.savingsRate.toStringAsFixed(0)}')),
+              Expanded(
+                child: _InlineMetric(
+                  label: 'Tasarruf oranı',
+                  value: '%${analytics.savingsRate.toStringAsFixed(0)}',
+                ),
+              ),
               const SizedBox(width: 18),
-              Expanded(child: _InlineMetric(label: 'Sende kalan', value: Formatters.money(analytics.savings))),
+              Expanded(
+                child: _InlineMetric(
+                  label: 'Sende kalan',
+                  value: Formatters.money(analytics.savings),
+                ),
+              ),
             ],
           ),
         ],
@@ -443,7 +546,11 @@ class _CategorySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<MapEntry<String, double>> entries = analytics.categoryTotals.entries.take(5).toList(growable: false);
+    final List<MapEntry<String, double>> entries = analytics
+        .categoryTotals
+        .entries
+        .take(5)
+        .toList(growable: false);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -459,27 +566,41 @@ class _CategorySection extends StatelessWidget {
           child: entries.isEmpty
               ? const Padding(
                   padding: EdgeInsets.fromLTRB(4, 18, 4, 22),
-                  child: Text('Bu ay henüz kategori dağılımı yok. Harcama ekledikçe burada görünür.'),
+                  child: Text(
+                    'Bu ay henüz kategori dağılımı yok. Harcama ekledikçe burada görünür.',
+                  ),
                 )
               : Column(
-            children: <Widget>[
-              SpendingCompositionChart(
-                categoryTotals: analytics.categoryTotals,
-                total: analytics.monthExpense,
-              ),
-              Divider(height: 1, thickness: 0.7, color: Theme.of(context).dividerColor),
-              for (int i = 0; i < entries.length; i++) ...<Widget>[
-                CategorySpendRow(
-                  category: entries[i].key,
-                  amount: entries[i].value,
-                  share: analytics.monthExpense <= 0 ? 0 : entries[i].value / analytics.monthExpense,
-                  rank: i + 1,
+                  children: <Widget>[
+                    SpendingCompositionChart(
+                      categoryTotals: analytics.categoryTotals,
+                      total: analytics.monthExpense,
+                    ),
+                    Divider(
+                      height: 1,
+                      thickness: 0.7,
+                      color: Theme.of(context).dividerColor,
+                    ),
+                    for (int i = 0; i < entries.length; i++) ...<Widget>[
+                      CategorySpendRow(
+                        category: entries[i].key,
+                        amount: entries[i].value,
+                        share: analytics.monthExpense <= 0
+                            ? 0
+                            : entries[i].value / analytics.monthExpense,
+                        rank: i + 1,
+                      ),
+                      if (i != entries.length - 1)
+                        Divider(
+                          height: 1,
+                          thickness: 0.7,
+                          color: Theme.of(
+                            context,
+                          ).dividerColor.withValues(alpha: 0.7),
+                        ),
+                    ],
+                  ],
                 ),
-                if (i != entries.length - 1)
-                  Divider(height: 1, thickness: 0.7, color: Theme.of(context).dividerColor.withValues(alpha: 0.7)),
-              ],
-            ],
-          ),
         ),
       ],
     );
@@ -492,14 +613,19 @@ class _RecentSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<TransactionRecord> recent = transactions.take(5).toList(growable: false);
+    final List<TransactionRecord> recent = transactions
+        .take(5)
+        .toList(growable: false);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         SectionHeader(
           title: 'Son işlemler',
           subtitle: 'Yakındaki hareketlerin.',
-          trailing: TextButton(onPressed: () => context.go('/transactions'), child: const Text('Tümü')),
+          trailing: TextButton(
+            onPressed: () => context.go('/transactions'),
+            child: const Text('Tümü'),
+          ),
         ),
         const SizedBox(height: 12),
         PremiumSurface(
@@ -508,23 +634,33 @@ class _RecentSection extends StatelessWidget {
           child: recent.isEmpty
               ? const Padding(
                   padding: EdgeInsets.fromLTRB(8, 22, 8, 22),
-                  child: Text('Henüz işlem yok. Fiş tarayarak, manuel girerek veya ekstre aktararak başlayabilirsin.'),
+                  child: Text(
+                    'Henüz işlem yok. Fiş tarayarak, manuel girerek veya ekstre aktararak başlayabilirsin.',
+                  ),
                 )
               : Column(
-            children: recent.map((TransactionRecord item) {
-              final bool last = identical(item, recent.last);
-              return Column(
-                children: <Widget>[
-                  TransactionRow(
-                    transaction: item,
-                    compact: true,
-                    onTap: () => context.push('/transaction/${item.id}'),
-                  ),
-                  if (!last) Divider(height: 1, thickness: 0.7, color: Theme.of(context).dividerColor),
-                ],
-              );
-            }).toList(growable: false),
-          ),
+                  children: recent
+                      .map((TransactionRecord item) {
+                        final bool last = identical(item, recent.last);
+                        return Column(
+                          children: <Widget>[
+                            TransactionRow(
+                              transaction: item,
+                              compact: true,
+                              onTap: () =>
+                                  context.push('/transaction/${item.id}'),
+                            ),
+                            if (!last)
+                              Divider(
+                                height: 1,
+                                thickness: 0.7,
+                                color: Theme.of(context).dividerColor,
+                              ),
+                          ],
+                        );
+                      })
+                      .toList(growable: false),
+                ),
         ),
       ],
     );
@@ -566,7 +702,12 @@ class _QuickLinks extends StatelessWidget {
 }
 
 class _QuickLink extends StatelessWidget {
-  const _QuickLink({required this.icon, required this.title, required this.value, required this.onTap});
+  const _QuickLink({
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.onTap,
+  });
   final IconData icon;
   final String title;
   final String value;
@@ -586,7 +727,12 @@ class _QuickLink extends StatelessWidget {
           const SizedBox(height: 14),
           Text(title, style: theme.textTheme.titleMedium),
           const SizedBox(height: 4),
-          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall,
+          ),
         ],
       ),
     );
@@ -607,13 +753,21 @@ class _EmptyWallet extends StatelessWidget {
       child: Center(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(AppSpacing.page, 20, AppSpacing.page, 40),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            20,
+            AppSpacing.page,
+            40,
+          ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 480),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                const Align(alignment: Alignment.centerLeft, child: FolioWordmark()),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: FolioWordmark(),
+                ),
                 const SizedBox(height: 34),
                 Text(
                   userName.isEmpty ? 'Hoş geldin' : 'Hoş geldin, $userName',
@@ -632,12 +786,16 @@ class _EmptyWallet extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
-                      Text('Başlamanın yolları', style: theme.textTheme.titleMedium),
+                      Text(
+                        'Başlamanın yolları',
+                        style: theme.textTheme.titleMedium,
+                      ),
                       const SizedBox(height: 16),
                       _EmptyAction(
                         icon: Icons.trending_up_rounded,
                         title: 'Gelirini gir',
-                        subtitle: 'Ay sonunda sende ne kaldığını görebilmek için tek kayıt yeter.',
+                        subtitle:
+                            'Ay sonunda sende ne kaldığını görebilmek için tek kayıt yeter.',
                         onTap: () => showAddTransactionSheet(
                           context,
                           initialType: TransactionType.income,
@@ -647,7 +805,8 @@ class _EmptyWallet extends StatelessWidget {
                       _EmptyAction(
                         icon: Icons.file_upload_outlined,
                         title: 'Ekstre aktar',
-                        subtitle: 'Bankandan indirdiğin CSV, XLSX veya PDF ekstreyi oku.',
+                        subtitle:
+                            'Bankandan indirdiğin CSV, XLSX veya PDF ekstreyi oku.',
                         onTap: () => context.push('/statement'),
                       ),
                       const SizedBox(height: 10),
@@ -661,7 +820,8 @@ class _EmptyWallet extends StatelessWidget {
                       _EmptyAction(
                         icon: Icons.science_outlined,
                         title: 'Örnek veriyle gez',
-                        subtitle: 'Profil › Verilerim bölümünden örnek cüzdanı yükle.',
+                        subtitle:
+                            'Profil › Verilerim bölümünden örnek cüzdanı yükle.',
                         onTap: () => context.go('/profile'),
                       ),
                     ],
@@ -707,7 +867,11 @@ class _EmptyAction extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
               ),
               alignment: Alignment.center,
-              child: Icon(icon, size: 19, color: AppColors.accent(theme.brightness)),
+              child: Icon(
+                icon,
+                size: 19,
+                color: AppColors.accent(theme.brightness),
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -720,7 +884,11 @@ class _EmptyAction extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(Icons.arrow_forward_ios_rounded, size: 13, color: AppColors.tertiary(theme.brightness)),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 13,
+              color: AppColors.tertiary(theme.brightness),
+            ),
           ],
         ),
       ),
@@ -740,9 +908,15 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Text('Görünüm yüklenemedi.', style: Theme.of(context).textTheme.headlineSmall),
+            Text(
+              'Görünüm yüklenemedi.',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
             const SizedBox(height: 8),
-            Text('Verilerini yeniden yüklemeyi deneyebilirsin.', style: Theme.of(context).textTheme.bodySmall),
+            Text(
+              'Verilerini yeniden yüklemeyi deneyebilirsin.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
             const SizedBox(height: 18),
             TextButton(onPressed: onRetry, child: const Text('Yeniden dene')),
           ],
