@@ -58,7 +58,7 @@ class AnalyticsScreen extends ConsumerWidget {
                   ],
                   _OverviewCard(analytics: analytics, month: selectedMonth),
                   const SizedBox(height: AppSpacing.section),
-                  const SectionHeader(title: 'Harcama eğilimi', subtitle: 'Seçili dönemin günlük hareketleri ve yumuşatılmış ana trendi.'),
+                  const SectionHeader(title: 'Günlük harcama', subtitle: 'Seçili dönemde her günün harcaması. Kesikli çizgi günlük ortalaman.'),
                   const SizedBox(height: 14),
                   PremiumSurface(
                     elevated: true,

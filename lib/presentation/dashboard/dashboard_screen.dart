@@ -263,9 +263,9 @@ class _RhythmSurface extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text('Harcama eğilimi', style: theme.textTheme.headlineSmall),
+          Text('Günlük harcama', style: theme.textTheme.headlineSmall),
           const SizedBox(height: 5),
-          Text('Bu ayın günlük harcamaları, eldeki kayıtlara göre.', style: theme.textTheme.bodySmall),
+          Text('Seçili dönemde her günün harcaması. Kesikli çizgi günlük ortalaman.', style: theme.textTheme.bodySmall),
           const SizedBox(height: 18),
           SpendingChart(
             key: ValueKey<String>(

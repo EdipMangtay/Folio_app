@@ -9,6 +9,14 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/utils/formatters.dart';
 import '../../domain/analytics/analytics_engine.dart';
 
+/// One column per day, at the amount actually spent that day.
+///
+/// This used to draw a weighted moving average as the prominent line, with the
+/// real figures behind it at 16% opacity. Daily spending is not a continuous
+/// signal with noise to remove — it is a set of discrete events — so smoothing
+/// it invented money on days nothing happened (933 ₺ on a day with no
+/// transactions, a 12.000 ₺ rent payment flattened to 4.120 ₺) and the curve
+/// read as unrelated to the wallet. Columns state the record and nothing else.
 class SpendingChart extends StatelessWidget {
   const SpendingChart({
     required this.points,
@@ -24,257 +32,246 @@ class SpendingChart extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final Brightness brightness = theme.brightness;
     final Color accent = AppColors.accent(brightness);
-    final Color muted = AppColors.muted(brightness);
 
     if (points.isEmpty) {
       return _ChartEmpty(height: height, label: 'Gösterilecek harcama günü yok.');
     }
 
-    final List<double> raw = points.map((DailySpendPoint e) => e.amount).toList(growable: false);
-    final double peak = raw.fold<double>(0, (double a, double b) => b > a ? b : a);
+    final List<double> amounts = points.map((DailySpendPoint e) => e.amount).toList(growable: false);
+    final double peak = amounts.fold<double>(0, (double a, double b) => b > a ? b : a);
     if (peak <= 0) {
       return _ChartEmpty(height: height, label: 'Bu dönemde henüz harcama yok.');
     }
 
-    final List<double> trend = _movingAverage(raw);
-    final double maxY = _niceMax(peak);
-    final double interval = maxY / 3;
-    final double average = raw.fold<double>(0, (double a, double b) => a + b) / raw.length;
-
-    final List<FlSpot> rawSpots = <FlSpot>[
-      for (int i = 0; i < raw.length; i++) FlSpot(i.toDouble(), raw[i]),
-    ];
-    final List<FlSpot> trendSpots = <FlSpot>[
-      for (int i = 0; i < trend.length; i++) FlSpot(i.toDouble(), trend[i]),
-    ];
-
-    final Widget chart = LineChart(
-      LineChartData(
-        minX: 0,
-        maxX: math.max(1, points.length - 1).toDouble(),
-        minY: 0,
-        maxY: maxY,
-        clipData: const FlClipData.all(),
-        gridData: FlGridData(
-          show: true,
-          drawVerticalLine: false,
-          horizontalInterval: interval,
-          getDrawingHorizontalLine: (double value) => FlLine(
-            color: theme.dividerColor.withValues(alpha: 0.60),
-            strokeWidth: 0.65,
-          ),
-        ),
-        extraLinesData: ExtraLinesData(
-          horizontalLines: <HorizontalLine>[
-            HorizontalLine(
-              y: average.clamp(0, maxY),
-              color: AppColors.tertiary(brightness).withValues(alpha: 0.45),
-              strokeWidth: 0.8,
-              dashArray: const <int>[5, 5],
-            ),
-          ],
-        ),
-        borderData: FlBorderData(show: false),
-        titlesData: FlTitlesData(
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 40,
-              interval: interval,
-              getTitlesWidget: (double value, TitleMeta meta) {
-                if ((value - meta.max).abs() < 0.01) return const SizedBox.shrink();
-                return Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: Text(
-                    _compact(value),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: AppColors.tertiary(brightness),
-                      fontSize: 9.5,
-                      height: 1,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 32,
-              interval: 1,
-              getTitlesWidget: (double value, TitleMeta meta) {
-                final int index = value.round();
-                if (!_showBottomLabel(index, points.length)) return const SizedBox.shrink();
-                final int safeIndex = index.clamp(0, points.length - 1);
-                return Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text(
-                    Formatters.shortDate(points[safeIndex].date),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: AppColors.tertiary(brightness),
-                      fontSize: 9.5,
-                      height: 1,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-        lineTouchData: LineTouchData(
-          enabled: true,
-          handleBuiltInTouches: true,
-          touchSpotThreshold: 28,
-          getTouchedSpotIndicator: (LineChartBarData bar, List<int> indexes) {
-            if (bar.barWidth < 2) {
-              return indexes
-                  .map((_) => const TouchedSpotIndicatorData(FlLine(strokeWidth: 0), FlDotData(show: false)))
-                  .toList(growable: false);
-            }
-            return indexes.map((int index) {
-              return TouchedSpotIndicatorData(
-                FlLine(color: accent.withValues(alpha: 0.22), strokeWidth: 1),
-                FlDotData(
-                  show: true,
-                  getDotPainter: (FlSpot spot, double percent, LineChartBarData data, int i) {
-                    return FlDotCirclePainter(
-                      radius: 4.5,
-                      color: AppColors.elevated(brightness),
-                      strokeWidth: 2.2,
-                      strokeColor: accent,
-                    );
-                  },
-                ),
-              );
-            }).toList(growable: false);
-          },
-          touchTooltipData: LineTouchTooltipData(
-            tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-            tooltipBorderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-            tooltipMargin: 12,
-            fitInsideHorizontally: true,
-            fitInsideVertically: true,
-            getTooltipColor: (LineBarSpot spot) => AppColors.ink(brightness),
-            getTooltipItems: (List<LineBarSpot> touched) {
-              return touched.map((LineBarSpot spot) {
-                if (spot.barIndex == 0) return null;
-                final int index = spot.x.round().clamp(0, points.length - 1);
-                return LineTooltipItem(
-                  '${Formatters.money(points[index].amount)}\n${Formatters.shortDate(points[index].date)}',
-                  TextStyle(
-                    color: AppColors.canvas(brightness),
-                    fontSize: 12,
-                    height: 1.35,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -0.15,
-                  ),
-                );
-              }).toList(growable: false);
-            },
-          ),
-        ),
-        lineBarsData: <LineChartBarData>[
-          LineChartBarData(
-            spots: rawSpots,
-            isCurved: false,
-            color: muted.withValues(alpha: brightness == Brightness.dark ? 0.20 : 0.16),
-            barWidth: 1.0,
-            dotData: const FlDotData(show: false),
-            belowBarData: BarAreaData(show: false),
-          ),
-          LineChartBarData(
-            spots: trendSpots,
-            isCurved: true,
-            curveSmoothness: raw.length < 4 ? 0.08 : 0.28,
-            preventCurveOverShooting: true,
-            color: accent,
-            barWidth: 2.5,
-            isStrokeCapRound: true,
-            isStrokeJoinRound: true,
-            dotData: FlDotData(
-              show: raw.length <= 8,
-              getDotPainter: (FlSpot spot, double percent, LineChartBarData bar, int index) {
-                return FlDotCirclePainter(
-                  radius: 3.2,
-                  color: AppColors.elevated(brightness),
-                  strokeWidth: 1.8,
-                  strokeColor: accent,
-                );
-              },
-            ),
-            belowBarData: BarAreaData(
-              show: true,
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: <Color>[
-                  accent.withValues(alpha: brightness == Brightness.dark ? 0.15 : 0.10),
-                  accent.withValues(alpha: 0.025),
-                  Colors.transparent,
-                ],
-                stops: const <double>[0, 0.62, 1],
-              ),
-            ),
-          ),
-        ],
-      ),
-      duration: FolioMotion.reduce(context) ? Duration.zero : FolioMotion.page,
-      curve: FolioMotion.enter,
-    );
+    final _Scale scale = _Scale.forPeak(peak);
+    final double average =
+        amounts.fold<double>(0, (double a, double b) => a + b) / amounts.length;
 
     return SizedBox(
       height: height,
-      child: ClipRect(child: chart),
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          // Thin marks: each column takes a little over half its slot, so the
+          // gaps stay legible at 31 days without a border around every bar.
+          const double axisWidth = 40;
+          final double slot = (constraints.maxWidth - axisWidth) / points.length;
+          final double barWidth = (slot * 0.58).clamp(2.0, 18.0);
+
+          return BarChart(
+            BarChartData(
+              alignment: BarChartAlignment.spaceAround,
+              minY: 0,
+              maxY: scale.max,
+              groupsSpace: 0,
+              barGroups: <BarChartGroupData>[
+                for (int i = 0; i < points.length; i++)
+                  BarChartGroupData(
+                    x: i,
+                    barRods: <BarChartRodData>[
+                      BarChartRodData(
+                        toY: amounts[i],
+                        width: barWidth,
+                        color: accent,
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(math.min(3, barWidth / 2)),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+              gridData: FlGridData(
+                show: true,
+                drawVerticalLine: false,
+                horizontalInterval: scale.step,
+                getDrawingHorizontalLine: (double value) => FlLine(
+                  color: theme.dividerColor.withValues(alpha: 0.60),
+                  strokeWidth: 0.65,
+                ),
+              ),
+              extraLinesData: ExtraLinesData(
+                horizontalLines: <HorizontalLine>[
+                  HorizontalLine(
+                    y: average.clamp(0, scale.max),
+                    color: AppColors.tertiary(brightness).withValues(alpha: 0.55),
+                    strokeWidth: 0.9,
+                    // Dashed reads as a threshold, which is what an average is.
+                    dashArray: const <int>[5, 5],
+                  ),
+                ],
+              ),
+              borderData: FlBorderData(show: false),
+              titlesData: FlTitlesData(
+                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: axisWidth,
+                    interval: scale.step,
+                    getTitlesWidget: (double value, TitleMeta meta) {
+                      if ((value - meta.max).abs() < 0.01) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: Text(
+                          _tick(value, scale),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: AppColors.tertiary(brightness),
+                            fontSize: 9.5,
+                            height: 1,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 32,
+                    interval: 1,
+                    getTitlesWidget: (double value, TitleMeta meta) {
+                      final int index = value.round();
+                      if (!_showBottomLabel(index, points.length)) {
+                        return const SizedBox.shrink();
+                      }
+                      final int safeIndex = index.clamp(0, points.length - 1);
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          Formatters.shortDate(points[safeIndex].date),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: AppColors.tertiary(brightness),
+                            fontSize: 9.5,
+                            height: 1,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              barTouchData: BarTouchData(
+                enabled: true,
+                touchTooltipData: BarTouchTooltipData(
+                  tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                  tooltipBorderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                  tooltipMargin: 12,
+                  fitInsideHorizontally: true,
+                  fitInsideVertically: true,
+                  getTooltipColor: (BarChartGroupData group) => AppColors.ink(brightness),
+                  getTooltipItem: (
+                    BarChartGroupData group,
+                    int groupIndex,
+                    BarChartRodData rod,
+                    int rodIndex,
+                  ) {
+                    final int index = group.x.clamp(0, points.length - 1);
+                    return BarTooltipItem(
+                      // The number named here is the one the column is drawn at.
+                      '${Formatters.money(points[index].amount)}\n'
+                      '${Formatters.fullDate(points[index].date)}',
+                      TextStyle(
+                        color: AppColors.canvas(brightness),
+                        fontSize: 12,
+                        height: 1.35,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.15,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+            duration: FolioMotion.reduce(context) ? Duration.zero : FolioMotion.page,
+            curve: FolioMotion.enter,
+          );
+        },
+      ),
     );
   }
 
   bool _showBottomLabel(int index, int length) {
     if (length <= 1) return index == 0;
-    if (length <= 7) return index == 0 || index == length - 1 || index == length ~/ 2;
     return index == 0 || index == length ~/ 2 || index == length - 1;
   }
 
-  List<double> _movingAverage(List<double> values) {
-    if (values.length < 5) return values;
-    final int radius = values.length >= 16 ? 2 : 1;
-    return List<double>.generate(values.length, (int index) {
-      double total = 0;
-      double weight = 0;
-      for (int offset = -radius; offset <= radius; offset++) {
-        final int i = (index + offset).clamp(0, values.length - 1);
-        final double w = offset == 0 ? 3 : (offset.abs() == 1 ? 2 : 1);
-        total += values[i] * w;
-        weight += w;
-      }
-      return total / weight;
-    }, growable: false);
+  /// Formats one axis tick.
+  ///
+  /// Every tick is a multiple of the same step, so the decision is made once
+  /// from the scale rather than per value — otherwise `5.0k` ends up sitting
+  /// above `10k` and the axis reads as two scales. Decimals use a comma, like
+  /// the rest of the app.
+  String _tick(double value, _Scale scale) {
+    if (value == 0) return '0';
+
+    if (scale.max >= 1000000) {
+      final bool whole = scale.step % 1000000 == 0;
+      return '${_decimal(value / 1000000, whole ? 0 : 1)}m';
+    }
+    if (scale.max >= 10000) {
+      final bool whole = scale.step % 1000 == 0;
+      return '${_decimal(value / 1000, whole ? 0 : 1)}k';
+    }
+    return _grouped(value);
   }
 
-  double _niceMax(double value) {
-    final double padded = value * 1.18;
-    if (padded <= 10) return 10;
-    final double magnitude = math.pow(10, (math.log(padded) / math.ln10).floor()).toDouble();
-    final double residual = padded / magnitude;
-    final double nice = residual <= 1
+  String _decimal(double value, int digits) =>
+      value.toStringAsFixed(digits).replaceAll('.', ',');
+
+  /// `1500` -> `1.500`, matching the thousands separator used for money.
+  String _grouped(double value) {
+    final String whole = value.toStringAsFixed(0);
+    final StringBuffer buffer = StringBuffer();
+    for (int i = 0; i < whole.length; i++) {
+      final int remaining = whole.length - i;
+      buffer.write(whole[i]);
+      if (remaining > 1 && remaining % 3 == 1) buffer.write('.');
+    }
+    return buffer.toString();
+  }
+}
+
+/// A vertical scale whose gridlines land on round numbers without leaving the
+/// tallest column stranded near the floor.
+class _Scale {
+  const _Scale({required this.max, required this.step});
+
+  final double max;
+  final double step;
+
+  static _Scale forPeak(double peak) {
+    if (peak <= 0) return const _Scale(max: 10, step: 5);
+
+    // A little headroom so the tallest column does not touch the top edge.
+    final double target = peak * 1.08;
+    final double rawStep = target / 3;
+    final double magnitude =
+        math.pow(10, (math.log(rawStep) / math.ln10).floor()).toDouble();
+    final double residual = rawStep / magnitude;
+    final double factor = residual <= 1
         ? 1
-        : residual <= 2
-            ? 2
-            : residual <= 5
-                ? 5
-                : 10;
-    return nice * magnitude;
-  }
-
-  String _compact(double value) {
-    if (value >= 1000000) return '${(value / 1000000).toStringAsFixed(value >= 10000000 ? 0 : 1)}m';
-    if (value >= 1000) return '${(value / 1000).toStringAsFixed(value >= 10000 ? 0 : 1)}k';
-    return value.toStringAsFixed(0);
+        : residual <= 1.5
+            ? 1.5
+            : residual <= 2
+                ? 2
+                : residual <= 2.5
+                    ? 2.5
+                    : residual <= 3
+                        ? 3
+                        : residual <= 4
+                            ? 4
+                            : residual <= 5
+                                ? 5
+                                : residual <= 7.5
+                                    ? 7.5
+                                    : 10;
+    final double step = factor * magnitude;
+    final int divisions = math.max(3, (target / step).ceil());
+    return _Scale(max: step * divisions, step: step);
   }
 }
 
