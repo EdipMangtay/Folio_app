@@ -9,16 +9,14 @@ import 'presentation/profile/privacy_gate.dart';
 import 'state/settings_controller.dart';
 
 class FolioApp extends ConsumerStatefulWidget {
-  const FolioApp({required this.onboardingSeen, super.key});
-
-  final bool onboardingSeen;
+  const FolioApp({super.key});
 
   @override
   ConsumerState<FolioApp> createState() => _FolioAppState();
 }
 
 class _FolioAppState extends ConsumerState<FolioApp> {
-  late final GoRouter _router = buildAppRouter(onboardingSeen: widget.onboardingSeen);
+  late final GoRouter _router = buildAppRouter();
 
   @override
   void dispose() {

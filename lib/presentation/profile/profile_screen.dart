@@ -9,6 +9,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../data/services/wallet_exporter.dart';
 import '../../domain/models/wallet_snapshot.dart';
 import '../../state/settings_controller.dart';
+import '../../state/tour_controller.dart';
 import '../../state/wallet_controller.dart';
 import '../widgets/folio_background.dart';
 import '../widgets/folio_wordmark.dart';
@@ -81,6 +82,16 @@ class ProfileScreen extends ConsumerWidget {
                   title: 'Aylık rapor',
                   subtitle: 'Ayın finansal hikayesini tam ekran aç',
                   onTap: () => context.push('/monthly-report'),
+                ),
+                Divider(height: 1, thickness: 0.7, color: Theme.of(context).dividerColor.withValues(alpha: 0.55)),
+                _SettingsRow(
+                  icon: Icons.play_circle_outline_rounded,
+                  title: 'Turu tekrar izle',
+                  subtitle: 'Sekmeleri ve ne işe yaradıklarını baştan gez',
+                  onTap: () {
+                    ref.read(tourProvider.notifier).start();
+                    context.go('/');
+                  },
                 ),
               ],
             ),

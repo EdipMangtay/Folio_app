@@ -34,14 +34,12 @@ Future<void> main() async {
       allowList: <String>{'theme_mode', 'user_name', 'onboarding_seen', 'privacy_lock_enabled'},
     ),
   );
-  final bool onboardingSeen = preferences.getBool('onboarding_seen') ?? false;
-
   runApp(
     ProviderScope(
       overrides: [
         preferencesProvider.overrideWithValue(preferences),
       ],
-      child: FolioApp(onboardingSeen: onboardingSeen),
+      child: const FolioApp(),
     ),
   );
 }
