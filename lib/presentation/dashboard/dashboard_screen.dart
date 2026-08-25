@@ -13,6 +13,7 @@ import '../../domain/models/wallet_snapshot.dart';
 import '../../state/month_scope_controller.dart';
 import '../../state/settings_controller.dart';
 import '../../state/wallet_controller.dart';
+import '../add/add_transaction_sheet.dart';
 import '../widgets/category_spend_row.dart';
 import '../widgets/empty_month_notice.dart';
 import '../widgets/folio_background.dart';
@@ -203,7 +204,19 @@ class _HeroSummary extends StatelessWidget {
           radius: AppSpacing.radiusMd,
           child: Row(
             children: <Widget>[
-              Expanded(child: _HeroMetric(label: 'Gelir', value: Formatters.money(analytics.monthIncome))),
+              Expanded(
+                child: _HeroMetric(
+                  label: 'Gelir',
+                  value: Formatters.money(analytics.monthIncome),
+                  // Everything that reports what is left is income minus
+                  // expense, so the figure people need to correct first is
+                  // this one. Tapping it goes straight to the income form.
+                  onTap: () => showAddTransactionSheet(
+                    context,
+                    initialType: TransactionType.income,
+                  ),
+                ),
+              ),
               Container(width: 1, height: 38, color: theme.dividerColor),
               const SizedBox(width: 16),
               Expanded(child: _HeroMetric(label: 'Sende kaldı', value: Formatters.money(analytics.savings))),
@@ -216,17 +229,28 @@ class _HeroSummary extends StatelessWidget {
 }
 
 class _HeroMetric extends StatelessWidget {
-  const _HeroMetric({required this.label, required this.value});
+  const _HeroMetric({required this.label, required this.value, this.onTap});
   final String label;
   final String value;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    return Column(
+    final Widget content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Text(label, style: theme.textTheme.bodySmall),
+        Row(
+          children: <Widget>[
+            Text(label, style: theme.textTheme.bodySmall),
+            if (onTap != null) ...<Widget>[
+              const SizedBox(width: 5),
+              Icon(Icons.add_circle_outline_rounded,
+                  size: 13, color: AppColors.muted(theme.brightness)),
+            ],
+          ],
+        ),
         const SizedBox(height: 6),
         FittedBox(
           alignment: Alignment.centerLeft,
@@ -234,6 +258,23 @@ class _HeroMetric extends StatelessWidget {
           child: Text(value, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
         ),
       ],
+    );
+
+    if (onTap == null) return content;
+    return Semantics(
+      button: true,
+      label: '$label: $value. Gelir eklemek için dokun.',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: content,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -591,8 +632,18 @@ class _EmptyWallet extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
-                      Text('Başlamanın üç yolu', style: theme.textTheme.titleMedium),
+                      Text('Başlamanın yolları', style: theme.textTheme.titleMedium),
                       const SizedBox(height: 16),
+                      _EmptyAction(
+                        icon: Icons.trending_up_rounded,
+                        title: 'Gelirini gir',
+                        subtitle: 'Ay sonunda sende ne kaldığını görebilmek için tek kayıt yeter.',
+                        onTap: () => showAddTransactionSheet(
+                          context,
+                          initialType: TransactionType.income,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                       _EmptyAction(
                         icon: Icons.file_upload_outlined,
                         title: 'Ekstre aktar',

@@ -6,9 +6,11 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/utils/formatters.dart';
 import '../../domain/analytics/analytics_engine.dart';
 import '../../domain/analytics/month_scope.dart';
+import '../../domain/models/transaction_record.dart';
 import '../../domain/models/wallet_snapshot.dart';
 import '../../state/month_scope_controller.dart';
 import '../../state/wallet_controller.dart';
+import '../add/add_transaction_sheet.dart';
 import '../widgets/cash_flow_comparison_chart.dart';
 import '../widgets/empty_month_notice.dart';
 import '../widgets/folio_background.dart';
@@ -149,7 +151,16 @@ class _OverviewCard extends StatelessWidget {
           const SizedBox(height: 16),
           Row(
             children: <Widget>[
-              Expanded(child: _Metric(label: 'Gelir', value: Formatters.money(analytics.monthIncome))),
+              Expanded(
+                child: _Metric(
+                  label: 'Gelir',
+                  value: Formatters.money(analytics.monthIncome),
+                  onTap: () => showAddTransactionSheet(
+                    context,
+                    initialType: TransactionType.income,
+                  ),
+                ),
+              ),
               const SizedBox(width: 16),
               Expanded(child: _Metric(label: 'Sende kalan', value: Formatters.money(analytics.savings))),
               const SizedBox(width: 16),
@@ -163,17 +174,28 @@ class _OverviewCard extends StatelessWidget {
 }
 
 class _Metric extends StatelessWidget {
-  const _Metric({required this.label, required this.value});
+  const _Metric({required this.label, required this.value, this.onTap});
   final String label;
   final String value;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    return Column(
+    final Widget content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Text(label, style: theme.textTheme.bodySmall),
+        Row(
+          children: <Widget>[
+            Text(label, style: theme.textTheme.bodySmall),
+            if (onTap != null) ...<Widget>[
+              const SizedBox(width: 5),
+              Icon(Icons.add_circle_outline_rounded,
+                  size: 13, color: AppColors.muted(theme.brightness)),
+            ],
+          ],
+        ),
         const SizedBox(height: 7),
         FittedBox(
           fit: BoxFit.scaleDown,
@@ -181,6 +203,20 @@ class _Metric extends StatelessWidget {
           child: Text(value, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
         ),
       ],
+    );
+
+    if (onTap == null) return content;
+    return Semantics(
+      button: true,
+      label: '$label: $value. Gelir eklemek için dokun.',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
+          child: content,
+        ),
+      ),
     );
   }
 }

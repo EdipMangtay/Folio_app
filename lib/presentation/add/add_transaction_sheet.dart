@@ -12,19 +12,32 @@ import '../../domain/models/transaction_record.dart';
 import '../../state/wallet_controller.dart';
 import '../widgets/folio_success.dart';
 
-Future<void> showAddTransactionSheet(BuildContext context) async {
+Future<void> showAddTransactionSheet(
+  BuildContext context, {
+  TransactionType initialType = TransactionType.expense,
+}) async {
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: Colors.transparent,
     barrierColor: Colors.black.withValues(alpha: 0.34),
-    builder: (BuildContext context) => const AddTransactionSheet(),
+    builder: (BuildContext context) => AddTransactionSheet(initialType: initialType),
   );
 }
 
 class AddTransactionSheet extends ConsumerStatefulWidget {
-  const AddTransactionSheet({super.key});
+  const AddTransactionSheet({
+    super.key,
+    this.initialType = TransactionType.expense,
+  });
+
+  /// Which side of the ledger the sheet opens on.
+  ///
+  /// Anything that offers to record income specifically — the income figure on
+  /// the dashboard, the empty wallet — lands on the income form rather than
+  /// making the user find the segmented control first.
+  final TransactionType initialType;
 
   @override
   ConsumerState<AddTransactionSheet> createState() => _AddTransactionSheetState();
@@ -35,8 +48,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   final TextEditingController _merchantController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
 
-  TransactionType _type = TransactionType.expense;
-  String _category = 'Diğer';
+  late TransactionType _type = widget.initialType;
+  late String _category = _defaultCategoryFor(widget.initialType);
   bool _categoryTouched = false;
   bool _saving = false;
   bool _saved = false;
@@ -49,6 +62,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     _noteController.dispose();
     super.dispose();
   }
+
+  static String _defaultCategoryFor(TransactionType type) =>
+      type == TransactionType.expense ? 'Diğer' : AppConstants.incomeCategories.first;
 
   double? get _amount => Formatters.parseMoneyInput(_amountController.text);
   List<String> get _categoryOptions => _type == TransactionType.expense ? AppConstants.expenseCategories : AppConstants.incomeCategories;
@@ -105,7 +121,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     setState(() {
       _type = type;
       _categoryTouched = false;
-      _category = type == TransactionType.expense ? 'Diğer' : AppConstants.incomeCategories.first;
+      _category = _defaultCategoryFor(type);
       if (_type == TransactionType.expense && _merchantController.text.trim().isNotEmpty) {
         _category = MerchantNormalizer.categoryFor(_merchantController.text);
       }
