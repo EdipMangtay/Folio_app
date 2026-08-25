@@ -150,6 +150,8 @@ class _AppShellState extends ConsumerState<AppShell> {
           step: step,
           highlight: _highlight,
           isLast: tour.isLast,
+          position: tour.index + 1,
+          total: kTourSteps.length,
           onNext: () {
             if (tour.isLast) {
               _finishTour();

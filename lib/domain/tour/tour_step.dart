@@ -2,7 +2,19 @@
 ///
 /// Named rather than keyed so the phone dock and the tablet rail can offer the
 /// same targets without the tour knowing which shell is on screen.
-enum TourTarget { homeTab, transactionsTab, addButton, analyticsTab, profileTab }
+enum TourTarget {
+  homeTab,
+  transactionsTab,
+  addButton,
+  analyticsTab,
+  profileTab,
+
+  // Controls inside a page. A tour that only names tabs says where things
+  // live but never where anything is done.
+  periodSelector,
+  incomeMetric,
+  transactionFilters,
+}
 
 sealed class TourStep {
   const TourStep();
@@ -42,33 +54,58 @@ const List<TourStep> kTourSteps = <TourStep>[
   ),
   TourSpotlightStep(
     tab: 0,
+    target: TourTarget.periodSelector,
+    title: 'Önce dönemi seç',
+    body: 'Buradan ay değiştirirsin. Banka ekstresi çoğunlukla kapanmış bir '
+        'ayı kapsar, o yüzden rakamlarını göremezsen ilk bakacağın yer burası.',
+  ),
+  TourSpotlightStep(
+    tab: 0,
+    target: TourTarget.incomeMetric,
+    title: 'Gelirini buradan ekle',
+    body: 'Bu rakama dokunduğunda gelir formu açılır. Ay sonunda sende ne '
+        'kaldığı, gelirinden giderin çıkarılarak bulunur.',
+  ),
+  TourSpotlightStep(
+    tab: 0,
     target: TourTarget.homeTab,
     title: 'Ana',
-    body: 'Seçili dönemin özeti: ne harcadın, ne kazandın, sende ne kaldı.',
+    body: 'Seçili dönemin özeti: ne harcadın, ne kazandın, sende ne kaldı. '
+        'Altında günlük harcama grafiğin ve kategori dağılımın var.',
+  ),
+  TourSpotlightStep(
+    tab: 0,
+    target: TourTarget.addButton,
+    title: 'Veriyi buradan eklersin',
+    body: 'Bu düğme üç yol açar: banka ekstreni aktar (CSV, XLSX, PDF), '
+        'fişini kameraya okut, ya da tek bir kaydı elle gir.',
   ),
   TourSpotlightStep(
     tab: 1,
     target: TourTarget.transactionsTab,
     title: 'İşlemler',
-    body: 'Her kayıt burada. Filtreleyebilir, düzeltebilir, silebilirsin.',
+    body: 'Her kayıt burada toplanır. Bir kayda dokunup düzeltebilir ya da '
+        'silebilirsin.',
   ),
   TourSpotlightStep(
     tab: 1,
-    target: TourTarget.addButton,
-    title: 'Ekle',
-    body: 'Elle gelir ya da gider ekle, fiş tara, banka ekstreni aktar.',
+    target: TourTarget.transactionFilters,
+    title: 'Kayıtları süz',
+    body: 'Bu hafta, bu ay, sadece gider ya da sadece gelir. Üstteki arama '
+        'kutusundan mağaza ve kategoriye göre de arayabilirsin.',
   ),
   TourSpotlightStep(
     tab: 2,
     target: TourTarget.analyticsTab,
     title: 'Analiz',
-    body: 'Dönemin tüm görünümü. Üstteki dönem düğmesi geçmiş ayları açar — '
-        'ekstre çoğunlukla kapanmış bir dönemi kapsar, oraya oradan geçersin.',
+    body: 'Dönemin tüm görünümü: günlük harcama, nakit akışı, kategori '
+        'dağılımı ve en çok harcadığın yerler.',
   ),
   TourSpotlightStep(
     tab: 3,
     target: TourTarget.profileTab,
     title: 'Profil',
-    body: 'Bütçeler, abonelikler ve verini dışa aktarma burada.',
+    body: 'Bütçe sınırları, tekrarlayan abonelikler, verini dışa aktarma ve '
+        'turu tekrar izleme burada.',
   ),
 ];

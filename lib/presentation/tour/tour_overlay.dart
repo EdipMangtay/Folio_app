@@ -16,6 +16,8 @@ class TourOverlay extends StatelessWidget {
     required this.step,
     required this.highlight,
     required this.isLast,
+    required this.position,
+    required this.total,
     required this.onNext,
     required this.onSkip,
     required this.onIncome,
@@ -29,6 +31,12 @@ class TourOverlay extends StatelessWidget {
   final Rect? highlight;
 
   final bool isLast;
+
+  /// Which stop this is, counting from one, and how many there are. Shown so
+  /// the tour reads as a finite thing rather than an open-ended interruption.
+  final int position;
+  final int total;
+
   final VoidCallback onNext;
   final VoidCallback onSkip;
   final Future<void> Function(double amount, String source) onIncome;
@@ -83,6 +91,8 @@ class TourOverlay extends StatelessWidget {
                 step: current as TourSpotlightStep,
                 cutout: cut,
                 isLast: isLast,
+                position: position,
+                total: total,
                 onNext: onNext,
                 onSkip: onSkip,
               ),
@@ -146,6 +156,8 @@ class _SpotlightBubble extends StatelessWidget {
     required this.step,
     required this.cutout,
     required this.isLast,
+    required this.position,
+    required this.total,
     required this.onNext,
     required this.onSkip,
   });
@@ -153,6 +165,8 @@ class _SpotlightBubble extends StatelessWidget {
   final TourSpotlightStep step;
   final Rect? cutout;
   final bool isLast;
+  final int position;
+  final int total;
   final VoidCallback onNext;
   final VoidCallback onSkip;
 
@@ -172,6 +186,7 @@ class _SpotlightBubble extends StatelessWidget {
       child: _Bubble(
         title: step.title,
         body: step.body,
+        progress: '$position/$total',
         primaryLabel: isLast ? 'Bitir' : 'İleri',
         onPrimary: onNext,
         onSkip: onSkip,
@@ -202,6 +217,7 @@ class _Bubble extends StatelessWidget {
   const _Bubble({
     required this.title,
     required this.body,
+    required this.progress,
     required this.primaryLabel,
     required this.onPrimary,
     required this.onSkip,
@@ -209,6 +225,7 @@ class _Bubble extends StatelessWidget {
 
   final String title;
   final String body;
+  final String progress;
   final String primaryLabel;
   final VoidCallback onPrimary;
   final VoidCallback onSkip;
@@ -223,7 +240,13 @@ class _Bubble extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(title, style: theme.textTheme.titleLarge),
+          Row(
+            children: <Widget>[
+              Expanded(child: Text(title, style: theme.textTheme.titleLarge)),
+              const SizedBox(width: 12),
+              Text(progress, style: theme.textTheme.labelMedium),
+            ],
+          ),
           const SizedBox(height: 8),
           Text(body, style: theme.textTheme.bodyMedium),
           const SizedBox(height: 14),
