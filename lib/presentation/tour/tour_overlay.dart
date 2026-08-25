@@ -181,11 +181,7 @@ class _SpotlightBubble extends StatelessWidget {
 }
 
 class _FormBubble extends StatelessWidget {
-  const _FormBubble({
-    required this.step,
-    required this.onIncome,
-    required this.onSkip,
-  });
+  const _FormBubble({required this.step, required this.onIncome, required this.onSkip});
 
   final TourFormStep step;
   final Future<void> Function(double amount, String source) onIncome;
@@ -193,24 +189,11 @@ class _FormBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Text(
-          step.title,
-          textAlign: TextAlign.center,
-          style: theme.textTheme.headlineMedium?.copyWith(color: Colors.white),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          step.body,
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white70),
-        ),
-        const SizedBox(height: 20),
-        IncomeEntryCard(onSubmit: onIncome, onSkip: onSkip),
-      ],
+    return IncomeEntryCard(
+      title: step.title,
+      body: step.body,
+      onSubmit: onIncome,
+      onSkip: onSkip,
     );
   }
 }

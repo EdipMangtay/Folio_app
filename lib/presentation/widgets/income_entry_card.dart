@@ -9,7 +9,19 @@ import 'premium_surface.dart';
 /// of the screen, which is where the skip control lives — it hid the button it
 /// was telling the user to press.
 class IncomeEntryCard extends StatefulWidget {
-  const IncomeEntryCard({required this.onSubmit, required this.onSkip, super.key});
+  const IncomeEntryCard({
+    required this.onSubmit,
+    required this.onSkip,
+    this.title,
+    this.body,
+    super.key,
+  });
+
+  /// Rendered inside the card when given. Headings placed outside it end up
+  /// floating over whatever the app is showing behind, which reads as two
+  /// pieces of text on top of each other.
+  final String? title;
+  final String? body;
 
   /// Called with a positive amount and the source the user typed, which may be
   /// empty. The card stays busy until this completes.
@@ -62,6 +74,14 @@ class _IncomeEntryCardState extends State<IncomeEntryCard> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
+            if (widget.title != null) ...<Widget>[
+              Text(widget.title!, style: theme.textTheme.headlineSmall),
+              const SizedBox(height: 6),
+            ],
+            if (widget.body != null) ...<Widget>[
+              Text(widget.body!, style: theme.textTheme.bodyMedium),
+              const SizedBox(height: 20),
+            ],
             Text('Aylık gelirin', style: theme.textTheme.labelMedium),
             const SizedBox(height: 8),
             TextField(
