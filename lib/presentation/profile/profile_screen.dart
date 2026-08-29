@@ -6,12 +6,16 @@ import 'package:local_auth/local_auth.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../data/services/cloud_backup_service.dart';
 import '../../data/services/wallet_exporter.dart';
 import '../../domain/models/wallet_snapshot.dart';
+import '../../services/notification_service.dart';
+import '../../state/cloud_backup_controller.dart';
 import '../../state/settings_controller.dart';
 import '../../state/tour_controller.dart';
 import '../../state/wallet_controller.dart';
 import '../widgets/folio_background.dart';
+import '../widgets/folio_text_dialog.dart';
 import '../widgets/folio_wordmark.dart';
 import '../widgets/premium_surface.dart';
 
@@ -21,6 +25,7 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final SettingsState settings = ref.watch(settingsProvider);
+    final CloudBackupState cloud = ref.watch(cloudBackupProvider);
     final int transactionCount =
         ref.watch(walletProvider).value?.transactions.length ?? 0;
     return FolioBackground(
@@ -64,6 +69,13 @@ class ProfileScreen extends ConsumerWidget {
             child: Column(
               children: <Widget>[
                 _SettingsRow(
+                  icon: Icons.savings_outlined,
+                  title: 'Birikim Hedefleri',
+                  subtitle: 'Tasarruf kasalarını ve büyük hedeflerini planla',
+                  onTap: () => context.push('/goals'),
+                ),
+                Divider(height: 1, thickness: 0.7, color: Theme.of(context).dividerColor.withValues(alpha: 0.55)),
+                _SettingsRow(
                   icon: Icons.donut_large_rounded,
                   title: 'Bütçeler',
                   subtitle: 'Kategori sınırlarını ve hedeflerini düzenle',
@@ -78,8 +90,15 @@ class ProfileScreen extends ConsumerWidget {
                 ),
                 Divider(height: 1, thickness: 0.7, color: Theme.of(context).dividerColor.withValues(alpha: 0.55)),
                 _SettingsRow(
+                  icon: Icons.view_carousel_outlined,
+                  title: 'Haftalık özet hikâyesi',
+                  subtitle: 'Bu haftanın harcama ve ritim hikayesini aç',
+                  onTap: () => context.push('/weekly-report'),
+                ),
+                Divider(height: 1, thickness: 0.7, color: Theme.of(context).dividerColor.withValues(alpha: 0.55)),
+                _SettingsRow(
                   icon: Icons.auto_awesome_outlined,
-                  title: 'Aylık rapor',
+                  title: 'Aylık rapor hikâyesi',
                   subtitle: 'Ayın finansal hikayesini tam ekran aç',
                   onTap: () => context.push('/monthly-report'),
                 ),
@@ -97,6 +116,41 @@ class ProfileScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 30),
+          const _SectionLabel('BİLDİRİMLER'),
+          const SizedBox(height: 12),
+          PremiumSurface(
+            elevated: true,
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+            child: Column(
+              children: <Widget>[
+                _PrivacyToggleRow(
+                  icon: Icons.notifications_none_rounded,
+                  title: 'Haftalık Finansal Özet',
+                  subtitle: 'Her Pazar akşamı haftalık harcama ve bütçe analizi bildirimi gönderir.',
+                  value: settings.weeklyNotificationsEnabled,
+                  onChanged: (bool val) => ref.read(settingsProvider.notifier).setWeeklyNotifications(val),
+                ),
+                Divider(height: 1, thickness: 0.7, color: Theme.of(context).dividerColor.withValues(alpha: 0.55)),
+                _SettingsRow(
+                  icon: Icons.notifications_active_outlined,
+                  title: 'Bildirimi Test Et',
+                  subtitle: 'Telefonuna anında dinamik bir haftalık finansal özet bildirimi gönderir.',
+                  onTap: () async {
+                    final WalletSnapshot? currentWallet = ref.read(walletProvider).value;
+                    if (currentWallet != null) {
+                      await NotificationService.instance.showTestNotification(currentWallet);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Test bildirimi gönderildi.')),
+                        );
+                      }
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 30),
           const _SectionLabel('VERİ VE GİZLİLİK'),
           const SizedBox(height: 12),
           PremiumSurface(
@@ -104,6 +158,14 @@ class ProfileScreen extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
             child: Column(
               children: <Widget>[
+                _PrivacyToggleRow(
+                  icon: Icons.visibility_off_outlined,
+                  title: 'Bakiyeleri Gizle',
+                  subtitle: 'Ana ekranda ve analizde parasal tutarları maskeler.',
+                  value: settings.hideBalances,
+                  onChanged: (bool val) => ref.read(settingsProvider.notifier).setHideBalances(val),
+                ),
+                Divider(height: 1, thickness: 0.7, color: Theme.of(context).dividerColor.withValues(alpha: 0.55)),
                 _PrivacyLockRow(
                   enabled: settings.privacyLockEnabled,
                   onChanged: (bool enabled) => _setPrivacyLock(context, ref, enabled),
@@ -121,6 +183,56 @@ class ProfileScreen extends ConsumerWidget {
                   title: 'Sınırlı kart bilgisi',
                   subtitle: 'Tam kart numarası tutulmaz; gerekirse yalnızca son dört hane gösterilir.',
                 ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 30),
+          const _SectionLabel('HESABIM'),
+          const SizedBox(height: 12),
+          PremiumSurface(
+            elevated: true,
+            padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
+            child: Column(
+              children: <Widget>[
+                if (!cloud.connected)
+                  _SettingsRow(
+                    icon: Icons.cloud_outlined,
+                    title: cloud.busy ? 'Bağlanıyor…' : 'Hesabını bağla',
+                    subtitle: 'iCloud veya Google Drive’a yedekle. Veri senin hesabında kalır, Folio’da değil.',
+                    onTap: cloud.busy ? () {} : () => _connectCloud(context, ref),
+                  )
+                else ...<Widget>[
+                  _InfoRow(
+                    icon: Icons.verified_user_outlined,
+                    title: cloud.account!.provider == 'google' ? 'Google hesabı' : 'iCloud',
+                    subtitle: cloud.account!.label,
+                  ),
+                  Divider(height: 1, thickness: 0.7, color: Theme.of(context).dividerColor.withValues(alpha: 0.55)),
+                  _SettingsRow(
+                    icon: Icons.cloud_upload_outlined,
+                    title: 'Yedekle',
+                    subtitle: cloud.lastBackupAt == null
+                        ? 'Cüzdanını kendi bulutuna yaz.'
+                        : 'Son yedek: ${_formatBackupTime(cloud.lastBackupAt!)}',
+                    onTap: cloud.busy ? () {} : () => _backupCloud(context, ref),
+                  ),
+                  Divider(height: 1, thickness: 0.7, color: Theme.of(context).dividerColor.withValues(alpha: 0.55)),
+                  _SettingsRow(
+                    icon: Icons.cloud_download_outlined,
+                    title: 'Yedekten geri yükle',
+                    subtitle: 'Bu telefondaki cüzdan, buluttaki yedekle değişir.',
+                    onTap: cloud.busy ? () {} : () => _restoreCloud(context, ref),
+                  ),
+                  if (cloud.account!.provider == 'google') ...<Widget>[
+                    Divider(height: 1, thickness: 0.7, color: Theme.of(context).dividerColor.withValues(alpha: 0.55)),
+                    _SettingsRow(
+                      icon: Icons.logout_rounded,
+                      title: 'Google oturumunu kapat',
+                      subtitle: 'Cüzdan telefonda kalır. Drive yedeğine bu cihazdan erişilmez.',
+                      onTap: cloud.busy ? () {} : () => ref.read(cloudBackupProvider.notifier).disconnect(),
+                    ),
+                  ],
+                ],
               ],
             ),
           ),
@@ -174,24 +286,70 @@ class ProfileScreen extends ConsumerWidget {
   }
 
   Future<void> _editName(BuildContext context, WidgetRef ref, String current) async {
-    final TextEditingController controller = TextEditingController(text: current);
-    final String? value = await showDialog<String>(
-      context: context,
-      builder: (BuildContext context) => AlertDialog(
-        title: const Text('Adın'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'Ad'),
-        ),
-        actions: <Widget>[
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Vazgeç')),
-          FilledButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('Kaydet')),
-        ],
-      ),
+    final String? value = await showFolioTextPrompt(
+      context,
+      title: 'Adın',
+      initial: current,
+      hint: 'Ad',
     );
-    controller.dispose();
     if (value != null) await ref.read(settingsProvider.notifier).setUserName(value);
+  }
+
+  Future<void> _connectCloud(BuildContext context, WidgetRef ref) async {
+    try {
+      await ref.read(cloudBackupProvider.notifier).connect();
+    } on CloudBackupException catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    }
+  }
+
+  Future<void> _backupCloud(BuildContext context, WidgetRef ref) async {
+    try {
+      await ref.read(cloudBackupProvider.notifier).backup();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cüzdan kendi hesabına yedeklendi.')),
+        );
+      }
+    } on CloudBackupException catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    }
+  }
+
+  Future<void> _restoreCloud(BuildContext context, WidgetRef ref) async {
+    final bool confirmed = await _confirm(
+      context,
+      title: 'Yedek geri yüklensin mi?',
+      body: 'Bu telefondaki işlemler, bütçeler ve hedefler buluttaki yedekle değişir. '
+          'Bu işlem geri alınamaz.',
+      action: 'Geri yükle',
+    );
+    if (!confirmed) return;
+    try {
+      await ref.read(cloudBackupProvider.notifier).restore();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Yedek telefona alındı.')),
+        );
+      }
+    } on CloudBackupException catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    }
+  }
+
+  static String _formatBackupTime(DateTime at) {
+    final DateTime local = at.toLocal();
+    final String day = local.day.toString().padLeft(2, '0');
+    final String month = local.month.toString().padLeft(2, '0');
+    final String hour = local.hour.toString().padLeft(2, '0');
+    final String minute = local.minute.toString().padLeft(2, '0');
+    return '$day.$month.${local.year} $hour:$minute';
   }
 
   Future<void> _setPrivacyLock(BuildContext context, WidgetRef ref, bool enabled) async {
@@ -556,6 +714,61 @@ class _SettingsRow extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PrivacyToggleRow extends StatelessWidget {
+  const _PrivacyToggleRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColors.soft(Theme.of(context).brightness),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, size: 20, color: AppColors.muted(Theme.of(context).brightness)),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Switch.adaptive(value: value, onChanged: onChanged),
+        ],
       ),
     );
   }

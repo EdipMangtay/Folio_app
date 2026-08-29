@@ -12,6 +12,7 @@ import '../widgets/brand_avatar.dart';
 import '../widgets/folio_background.dart';
 import '../widgets/loading_view.dart';
 import '../widgets/premium_surface.dart';
+import 'edit_transaction_sheet.dart';
 
 class TransactionDetailScreen extends ConsumerWidget {
   const TransactionDetailScreen({required this.transactionId, super.key});
@@ -21,42 +22,68 @@ class TransactionDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final AsyncValue<WalletSnapshot> wallet = ref.watch(walletProvider);
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(onPressed: () => context.pop(), icon: const Icon(Icons.arrow_back_rounded)),
-      ),
-      body: FolioBackground(
-        child: wallet.when(
-          loading: () => const LoadingView(),
-          error: (Object error, StackTrace stack) => const Center(child: Text('İşlem açılamadı.')),
-          data: (WalletSnapshot snapshot) {
-            TransactionRecord? transaction;
-            for (final TransactionRecord item in snapshot.transactions) {
-              if (item.id == transactionId) {
-                transaction = item;
-                break;
-              }
-            }
-            if (transaction == null) return const Center(child: Text('İşlem bulunamadı.'));
-            final TransactionRecord found = transaction;
-            return _Detail(
+    return wallet.when(
+      loading: () => const Scaffold(body: LoadingView()),
+      error: (Object error, StackTrace stack) => const Scaffold(body: Center(child: Text('İşlem açılamadı.'))),
+      data: (WalletSnapshot snapshot) {
+        TransactionRecord? transaction;
+        for (final TransactionRecord item in snapshot.transactions) {
+          if (item.id == transactionId) {
+            transaction = item;
+            break;
+          }
+        }
+        if (transaction == null) {
+          return Scaffold(
+            appBar: AppBar(
+              leading: IconButton(
+                onPressed: () => context.pop(),
+                icon: const Icon(Icons.arrow_back_rounded),
+              ),
+            ),
+            body: const Center(child: Text('İşlem bulunamadı.')),
+          );
+        }
+        final TransactionRecord found = transaction;
+        return Scaffold(
+          appBar: AppBar(
+            leading: IconButton(
+              onPressed: () => context.pop(),
+              icon: const Icon(Icons.arrow_back_rounded),
+            ),
+            actions: <Widget>[
+              IconButton(
+                onPressed: () => showEditTransactionSheet(context, transaction: found),
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: 'İşlemi düzenle',
+              ),
+            ],
+          ),
+          body: FolioBackground(
+            child: _Detail(
               transaction: found,
+              onEdit: () => showEditTransactionSheet(context, transaction: found),
               onDelete: () async {
                 await ref.read(walletProvider.notifier).deleteTransaction(found.id);
                 if (context.mounted) context.pop();
               },
-            );
-          },
-        ),
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
 
 class _Detail extends StatelessWidget {
-  const _Detail({required this.transaction, required this.onDelete});
+  const _Detail({
+    required this.transaction,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   final TransactionRecord transaction;
+  final VoidCallback onEdit;
   final Future<void> Function() onDelete;
 
   @override
@@ -126,31 +153,46 @@ class _Detail extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 22),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(54),
-                    side: BorderSide(color: AppColors.coral.withValues(alpha: 0.30)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.radiusMd)),
-                  ),
-                  onPressed: () async {
-                    final bool? confirmed = await showDialog<bool>(
-                      context: context,
-                      builder: (BuildContext context) => AlertDialog(
-                        title: const Text('İşlem silinsin mi?'),
-                        content: const Text('Bu hareket yerel kayıtlarından kaldırılacak.'),
-                        actions: <Widget>[
-                          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Vazgeç')),
-                          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sil', style: TextStyle(color: AppColors.coral))),
-                        ],
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(54),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.radiusMd)),
                       ),
-                    );
-                    if (confirmed == true) await onDelete();
-                  },
-                  icon: const Icon(Icons.delete_outline_rounded, color: AppColors.coral, size: 19),
-                  label: const Text('İşlemi sil', style: TextStyle(color: AppColors.coral)),
-                ),
+                      onPressed: onEdit,
+                      icon: const Icon(Icons.edit_outlined, size: 19),
+                      label: const Text('Düzenle'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(54),
+                        side: BorderSide(color: AppColors.coral.withValues(alpha: 0.30)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.radiusMd)),
+                      ),
+                      onPressed: () async {
+                        final bool? confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (BuildContext context) => AlertDialog(
+                            title: const Text('İşlem silinsin mi?'),
+                            content: const Text('Bu hareket yerel kayıtlarından kaldırılacak.'),
+                            actions: <Widget>[
+                              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Vazgeç')),
+                              TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sil', style: TextStyle(color: AppColors.coral))),
+                            ],
+                          ),
+                        );
+                        if (confirmed == true) await onDelete();
+                      },
+                      icon: const Icon(Icons.delete_outline_rounded, color: AppColors.coral, size: 19),
+                      label: const Text('Sil', style: TextStyle(color: AppColors.coral)),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

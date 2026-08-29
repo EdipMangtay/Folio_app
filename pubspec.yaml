@@ -25,7 +25,10 @@ dependencies:
   excel: ^4.0.6
   google_mlkit_text_recognition: ^0.17.1
   google_fonts: ^6.3.2
+  google_sign_in: ^6.3.0
+  http: ^1.5.0
   syncfusion_flutter_pdf: ^33.2.13
+  flutter_local_notifications: ^22.3.0
 
 dev_dependencies:
   flutter_test:
@@ -38,9 +41,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/branding/app_icon.png
-    # Manrope is bundled rather than fetched at runtime: release builds hold no
-    # INTERNET permission, so a download would silently fall back to the system
-    # font. google_fonts picks these up by filename.
+    # Manrope is bundled rather than fetched at runtime.
+    # google_fonts picks these up by filename.
     - assets/fonts/
 
 flutter_launcher_icons:

@@ -3,10 +3,12 @@ import 'package:go_router/go_router.dart';
 import '../../presentation/analytics/analytics_screen.dart';
 import '../../presentation/budgets/budgets_screen.dart';
 import '../../presentation/dashboard/dashboard_screen.dart';
+import '../../presentation/goals/goals_screen.dart';
 import '../../presentation/import/receipt_scan_screen.dart';
 import '../../presentation/import/statement_import_screen.dart';
 import '../../presentation/profile/profile_screen.dart';
 import '../../presentation/report/monthly_report_screen.dart';
+import '../../presentation/report/weekly_report_screen.dart';
 import '../../presentation/shell/app_shell.dart';
 import '../../presentation/subscriptions/subscriptions_screen.dart';
 import '../../presentation/transactions/transaction_detail_screen.dart';
@@ -58,8 +60,11 @@ GoRouter buildAppRouter() {
       GoRoute(path: '/receipt', builder: (context, state) => const ReceiptScanScreen()),
       GoRoute(path: '/statement', builder: (context, state) => const StatementImportScreen()),
       GoRoute(path: '/budgets', builder: (context, state) => const BudgetsScreen()),
+      GoRoute(path: '/goals', builder: (context, state) => const GoalsScreen()),
       GoRoute(path: '/subscriptions', builder: (context, state) => const SubscriptionsScreen()),
       GoRoute(path: '/monthly-report', builder: (context, state) => const MonthlyReportScreen()),
+      GoRoute(path: '/weekly-report', builder: (context, state) => const WeeklyReportScreen()),
+      GoRoute(path: '/report/weekly', builder: (context, state) => const WeeklyReportScreen()),
     ],
   );
 }

@@ -15,6 +15,7 @@ class TourState {
   TourStep? get step =>
       running && index >= 0 && index < kTourSteps.length ? kTourSteps[index] : null;
 
+  bool get isFirst => running && index == 0;
   bool get isLast => running && index == kTourSteps.length - 1;
 
   TourState copyWith({bool? running, int? index}) =>
@@ -39,6 +40,12 @@ class TourController extends Notifier<TourState> {
     } else {
       state = state.copyWith(index: nextIndex);
     }
+  }
+
+  /// Moves back to the previous stop if not on the first stop.
+  void previous() {
+    if (!state.running || state.index <= 0) return;
+    state = state.copyWith(index: state.index - 1);
   }
 
   void finish() => state = const TourState.idle();

@@ -20,5 +20,7 @@
 - [ ] `flutter analyze` temiz.
 - [ ] `flutter test` temiz.
 - [ ] `flutter build ipa --release` başarılı.
+- [ ] Apple Developer’da iCloud Documents container `iCloud.com.folio.wallet` oluştur ve App ID’ye bağla.
+- [ ] App Privacy: isteğe bağlı yedek kullanıcının iCloud’una yazılır; Folio sunucusu yoktur.
 - [ ] TestFlight internal test yap.
 - [ ] Store review için demo/review notes gerekiyorsa hazırla.

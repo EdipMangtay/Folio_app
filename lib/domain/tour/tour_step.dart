@@ -35,6 +35,7 @@ class TourSpotlightStep extends TourStep {
     required this.target,
     required this.title,
     required this.body,
+    this.badge,
   });
 
   /// The branch index the shell must be showing before this stop makes sense.
@@ -42,6 +43,7 @@ class TourSpotlightStep extends TourStep {
   final TourTarget target;
   final String title;
   final String body;
+  final String? badge;
 }
 
 /// Income comes first on purpose: a fresh install has an empty wallet, so a
@@ -55,6 +57,7 @@ const List<TourStep> kTourSteps = <TourStep>[
   TourSpotlightStep(
     tab: 0,
     target: TourTarget.periodSelector,
+    badge: 'DÖNEM SEÇİMİ',
     title: 'Önce dönemi seç',
     body: 'Buradan ay değiştirirsin. Banka ekstresi çoğunlukla kapanmış bir '
         'ayı kapsar, o yüzden rakamlarını göremezsen ilk bakacağın yer burası.',
@@ -62,6 +65,7 @@ const List<TourStep> kTourSteps = <TourStep>[
   TourSpotlightStep(
     tab: 0,
     target: TourTarget.incomeMetric,
+    badge: 'GELİR YÖNETİMİ',
     title: 'Gelirini buradan ekle',
     body: 'Bu rakama dokunduğunda gelir formu açılır. Ay sonunda sende ne '
         'kaldığı, gelirinden giderin çıkarılarak bulunur.',
@@ -69,43 +73,49 @@ const List<TourStep> kTourSteps = <TourStep>[
   TourSpotlightStep(
     tab: 0,
     target: TourTarget.homeTab,
-    title: 'Ana',
+    badge: 'ANA SAYFA',
+    title: 'Ana Görünüm',
     body: 'Seçili dönemin özeti: ne harcadın, ne kazandın, sende ne kaldı. '
-        'Altında günlük harcama grafiğin ve kategori dağılımın var.',
+        'Finansal sağlık puanın ve birikim hedeflerin tek bakışta burada.',
   ),
   TourSpotlightStep(
     tab: 0,
     target: TourTarget.addButton,
+    badge: 'HIZLI İŞLEM',
     title: 'Veriyi buradan eklersin',
     body: 'Bu düğme üç yol açar: banka ekstreni aktar (CSV, XLSX, PDF), '
-        'fişini kameraya okut, ya da tek bir kaydı elle gir.',
+        'fişini kameraya okut ya da tek bir kaydı elle gir.',
   ),
   TourSpotlightStep(
     tab: 1,
     target: TourTarget.transactionsTab,
-    title: 'İşlemler',
-    body: 'Her kayıt burada toplanır. Bir kayda dokunup düzeltebilir ya da '
-        'silebilirsin.',
+    badge: 'İŞLEMLER',
+    title: 'İşlem Defteri',
+    body: 'Tüm harcamaların ve gelirlerin burada toplanır. Bir kayda dokunup '
+        'düzenleyebilir veya silebilirsin.',
   ),
   TourSpotlightStep(
     tab: 1,
     target: TourTarget.transactionFilters,
-    title: 'Kayıtları süz',
-    body: 'Bu hafta, bu ay, sadece gider ya da sadece gelir. Üstteki arama '
-        'kutusundan mağaza ve kategoriye göre de arayabilirsin.',
+    badge: 'FİLTRE & SIRALAMA',
+    title: 'Kayıtları süz ve sırala',
+    body: 'Kategori çipleri ile anında süz, tarihe veya tutara göre sırala. '
+        'Arama kutusundan mağaza adına göre hızlıca bulabilirsin.',
   ),
   TourSpotlightStep(
     tab: 2,
     target: TourTarget.analyticsTab,
-    title: 'Analiz',
-    body: 'Dönemin tüm görünümü: günlük harcama, nakit akışı, kategori '
-        'dağılımı ve en çok harcadığın yerler.',
+    badge: 'FİNANSAL ANALİZ',
+    title: 'Analiz & Özetler',
+    body: 'Günlük harcama ritmi, nakit akışı, kategori payları, haftalık ve '
+        'aylık interaktif finansal hikâyelerin burada.',
   ),
   TourSpotlightStep(
     tab: 3,
     target: TourTarget.profileTab,
-    title: 'Profil',
-    body: 'Bütçe sınırları, tekrarlayan abonelikler, verini dışa aktarma ve '
-        'turu tekrar izleme burada.',
+    badge: 'KONTROL & AYARLAR',
+    title: 'Profil & Bildirimler',
+    body: 'Birikim kasaları, bütçe sınırları, gizlilik kilidi, haftalık '
+        'özet bildirimleri ve veri yedekleme burada.',
   ),
 ];

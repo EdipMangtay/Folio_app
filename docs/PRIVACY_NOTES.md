@@ -12,6 +12,7 @@ Bu belge hukuki danışmanlık değildir; uygulamanın mevcut teknik veri akış
 - App içinde reklam SDK'sı yoktur.
 - App içinde analytics/marketing SDK'sı yoktur.
 - Opsiyonel cihaz kilidi `local_auth` üzerinden işletim sistemi doğrulamasını çağırır; uygulama biyometrik template/veri görmez veya saklamaz.
+- Opsiyonel bulut yedek: kullanıcının iCloud veya Google Drive hesabına yazar; Folio sunucusu yoktur.
 - Kartın tam PAN numarasını saklayan alan yoktur; demo payment label sadece maskeli gösterimdir.
 
 ## Production öncesi tekrar kontrol edilmesi gerekenler
@@ -23,7 +24,7 @@ Yeni SDK veya backend eklediğinizde:
 3. App Store Privacy Nutrition Label cevaplarını güncelleyin.
 4. Google Play Data Safety cevaplarını güncelleyin.
 5. Hesap açma eklenirse hesap silme sürecini ekleyin.
-6. Cloud backup eklenirse encryption, retention ve deletion kurallarını belirtin.
+6. Cloud backup: yedek kullanıcının iCloud / Google Drive hesabındadır; uygulama sunucusu yoktur. Hesap silme = kullanıcının kendi Drive/iCloud dosyasını silmesi ve uygulamayı kaldırması.
 7. Crash/analytics SDK eklenirse SDK vendor veri pratiklerini ayrı değerlendirin.
 
 Mağaza beyanlarını yayın anındaki gerçek uygulama build'ine göre doldurun; bu taslak tek başına mağaza beyanı değildir.

@@ -184,6 +184,7 @@ class _SpotlightBubble extends StatelessWidget {
       top: above ? null : (hole?.bottom ?? screen.height * 0.35) + 16,
       bottom: above ? screen.height - hole.top + 16 : null,
       child: _Bubble(
+        badge: step.badge,
         title: step.title,
         body: step.body,
         progress: '$position/$total',
@@ -221,6 +222,7 @@ class _Bubble extends StatelessWidget {
     required this.primaryLabel,
     required this.onPrimary,
     required this.onSkip,
+    this.badge,
   });
 
   final String title;
@@ -229,41 +231,91 @@ class _Bubble extends StatelessWidget {
   final String primaryLabel;
   final VoidCallback onPrimary;
   final VoidCallback onSkip;
+  final String? badge;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     return PremiumSurface(
       elevated: true,
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
+          if (badge != null) ...<Widget>[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
+              decoration: BoxDecoration(
+                color: AppColors.accent(theme.brightness).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                badge!,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: AppColors.accent(theme.brightness),
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
           Row(
             children: <Widget>[
-              Expanded(child: Text(title, style: theme.textTheme.titleLarge)),
+              Expanded(
+                child: Text(
+                  title,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
               const SizedBox(width: 12),
-              Text(progress, style: theme.textTheme.labelMedium),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.soft(theme.brightness),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  progress,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: AppColors.muted(theme.brightness),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(body, style: theme.textTheme.bodyMedium),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
+          Text(
+            body,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              height: 1.45,
+              color: AppColors.ink(theme.brightness).withValues(alpha: 0.88),
+            ),
+          ),
+          const SizedBox(height: 16),
           Row(
             children: <Widget>[
-              // Height comes from the button's own style: a SizedBox here would
-              // hand the button the Row's unbounded width along with the fixed
-              // height, which is not a valid constraint.
               TextButton(
                 onPressed: onSkip,
-                style: TextButton.styleFrom(minimumSize: const Size(64, 44)),
+                style: TextButton.styleFrom(
+                  minimumSize: const Size(64, 44),
+                  foregroundColor: AppColors.muted(theme.brightness),
+                ),
                 child: const Text('Geç'),
               ),
               const Spacer(),
               FilledButton(
                 onPressed: onPrimary,
-                style: FilledButton.styleFrom(minimumSize: const Size(88, 44)),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(92, 44),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
                 child: Text(primaryLabel),
               ),
             ],

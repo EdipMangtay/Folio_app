@@ -74,5 +74,17 @@
 	<string>Galerindeki fiş fotoğraflarını seçebilmen için fotoğraf arşivine erişim gerekir.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Finansal görünümünü Face ID ile koruyabilmen için Face ID erişimi gerekir.</string>
+	<key>NSUbiquitousContainers</key>
+	<dict>
+		<key>iCloud.com.folio.wallet</key>
+		<dict>
+			<key>NSUbiquitousContainerIsDocumentScopePublic</key>
+			<false/>
+			<key>NSUbiquitousContainerName</key>
+			<string>Folio</string>
+			<key>NSUbiquitousContainerSupportedFolderLevels</key>
+			<string>Any</string>
+		</dict>
+	</dict>
 </dict>
 </plist>

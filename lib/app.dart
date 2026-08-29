@@ -26,13 +26,16 @@ class _FolioAppState extends ConsumerState<FolioApp> {
 
   @override
   Widget build(BuildContext context) {
-    final SettingsState settings = ref.watch(settingsProvider);
+    final ThemeMode themeMode = ref.watch(settingsProvider.select((SettingsState value) => value.themeMode));
+    final bool privacyLockEnabled = ref.watch(
+      settingsProvider.select((SettingsState value) => value.privacyLockEnabled),
+    );
     return MaterialApp.router(
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: settings.themeMode,
+      themeMode: themeMode,
       routerConfig: _router,
       themeAnimationDuration: const Duration(milliseconds: 260),
       themeAnimationCurve: Curves.easeOutCubic,
@@ -43,7 +46,7 @@ class _FolioAppState extends ConsumerState<FolioApp> {
             textScaler: media.textScaler.clamp(minScaleFactor: 0.85, maxScaleFactor: 1.35),
           ),
           child: PrivacyGate(
-            enabled: settings.privacyLockEnabled,
+            enabled: privacyLockEnabled,
             onDisable: () => ref.read(settingsProvider.notifier).setPrivacyLockEnabled(false),
             child: child ?? const SizedBox.shrink(),
           ),

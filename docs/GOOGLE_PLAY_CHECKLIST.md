@@ -19,3 +19,5 @@
 - [ ] Crash/ANR pre-launch report sonuçlarını kontrol et.
 
 - [ ] Android biyometrik/device credential kilit akışını gerçek cihazda test et.
+- [ ] Google Cloud Console’da Android OAuth client oluştur (`com.folio.wallet` + release SHA-1). Drive `appDataFolder` yedeği buna bağlı.
+- [ ] Data Safety: isteğe bağlı yedek kullanıcının Google hesabına yazılır; Folio sunucusu yoktur.

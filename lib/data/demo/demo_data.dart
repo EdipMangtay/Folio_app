@@ -1,4 +1,5 @@
 import '../../domain/models/budget_record.dart';
+import '../../domain/models/goal_record.dart';
 import '../../domain/models/transaction_record.dart';
 
 abstract final class DemoData {
@@ -105,4 +106,38 @@ abstract final class DemoData {
         BudgetRecord(id: 'budget_transport', category: 'Ulaşım', limitAmount: 6500),
         BudgetRecord(id: 'budget_shopping', category: 'Alışveriş', limitAmount: 5500),
       ];
+
+  /// Default savings goals.
+  static List<GoalRecord> goals() {
+    final DateTime now = DateTime.now();
+    return <GoalRecord>[
+      GoalRecord(
+        id: 'goal_emergency',
+        title: 'Acil Durum Fonu',
+        targetAmount: 50000,
+        savedAmount: 32500,
+        category: 'Tasarruf',
+        targetDate: DateTime(now.year, now.month + 4, 1),
+        note: '6 aylık temel gider güvencesi',
+      ),
+      GoalRecord(
+        id: 'goal_vacation',
+        title: 'Yaz Tatili',
+        targetAmount: 35000,
+        savedAmount: 22000,
+        category: 'Seyahat',
+        targetDate: DateTime(now.year, now.month + 6, 15),
+        note: 'Ege rotası tatil birikimi',
+      ),
+      GoalRecord(
+        id: 'goal_tech',
+        title: 'Yeni Ekipman',
+        targetAmount: 42000,
+        savedAmount: 18000,
+        category: 'Teknoloji',
+        targetDate: DateTime(now.year, now.month + 8, 1),
+        note: 'Geliştirme ve çalışma istasyonu',
+      ),
+    ];
+  }
 }

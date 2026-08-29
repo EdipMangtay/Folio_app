@@ -7,22 +7,26 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/utils/formatters.dart';
 import '../../domain/analytics/analytics_engine.dart';
 import '../../domain/analytics/month_scope.dart';
-import '../../domain/tour/tour_step.dart';
+import '../../domain/models/budget_record.dart';
+import '../../domain/models/goal_record.dart';
 import '../../domain/models/subscription_record.dart';
 import '../../domain/models/transaction_record.dart';
 import '../../domain/models/wallet_snapshot.dart';
+import '../../domain/tour/tour_step.dart';
 import '../../state/month_scope_controller.dart';
 import '../../state/settings_controller.dart';
 import '../../state/wallet_controller.dart';
 import '../add/add_transaction_sheet.dart';
+import '../tour/tour_anchor.dart';
+import '../widgets/category_detail_sheet.dart';
 import '../widgets/category_spend_row.dart';
 import '../widgets/empty_month_notice.dart';
+import '../widgets/financial_score_sheet.dart';
 import '../widgets/folio_background.dart';
 import '../widgets/folio_page.dart';
 import '../widgets/folio_wordmark.dart';
 import '../widgets/insight_block.dart';
 import '../widgets/loading_view.dart';
-import '../tour/tour_anchor.dart';
 import '../widgets/month_selector.dart';
 import '../widgets/premium_surface.dart';
 import '../widgets/section_header.dart';
@@ -39,6 +43,9 @@ class DashboardScreen extends ConsumerWidget {
     final DateTime selectedMonth = ref.watch(selectedMonthProvider);
     final String userName = ref.watch(
       settingsProvider.select((SettingsState value) => value.userName),
+    );
+    final bool hideBalances = ref.watch(
+      settingsProvider.select((SettingsState value) => value.hideBalances),
     );
 
     return asyncWallet.when(
@@ -72,7 +79,11 @@ class DashboardScreen extends ConsumerWidget {
                     children: <Widget>[
                       _TopBar(userName: userName),
                       const SizedBox(height: 30),
-                      _HeroSummary(analytics: analytics, month: selectedMonth),
+                      _HeroSummary(
+                        analytics: analytics,
+                        month: selectedMonth,
+                        hideBalances: hideBalances,
+                      ),
                       if (EmptyMonthNotice.isNeeded(
                         wallet.transactions,
                         selectedMonth,
@@ -86,15 +97,24 @@ class DashboardScreen extends ConsumerWidget {
                       const SizedBox(height: 28),
                       _RhythmSurface(analytics: analytics),
                       const SizedBox(height: 18),
-                      _BalancePanel(analytics: analytics),
+                      _BalancePanel(
+                        analytics: analytics,
+                        hideBalances: hideBalances,
+                      ),
                       const SizedBox(height: AppSpacing.section),
-                      _CategorySection(analytics: analytics),
+                      _CategorySection(
+                        analytics: analytics,
+                        wallet: wallet,
+                      ),
                       const SizedBox(height: AppSpacing.section),
                       if (analytics.insights.isNotEmpty) ...<Widget>[
                         InsightBlock(insight: analytics.insights.first),
                         const SizedBox(height: AppSpacing.section),
                       ],
-                      _RecentSection(transactions: wallet.transactions),
+                      _RecentSection(
+                        transactions: wallet.transactions,
+                        hideBalances: hideBalances,
+                      ),
                       const SizedBox(height: AppSpacing.compactSection),
                       _QuickLinks(wallet: wallet),
                     ],
@@ -109,22 +129,33 @@ class DashboardScreen extends ConsumerWidget {
   }
 }
 
-class _TopBar extends StatelessWidget {
+class _TopBar extends ConsumerWidget {
   const _TopBar({required this.userName});
   final String userName;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final ThemeData theme = Theme.of(context);
+    final bool hideBalances = ref.watch(
+      settingsProvider.select((SettingsState value) => value.hideBalances),
+    );
+
     return Row(
       children: <Widget>[
         const FolioWordmark(),
         const Spacer(),
         FolioIconButton(
+          icon: hideBalances ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+          tooltip: hideBalances ? 'Bakiyeleri göster' : 'Bakiyeleri gizle',
+          label: hideBalances ? 'Bakiyeleri göster' : 'Bakiyeleri gizle',
+          onPressed: () => ref.read(settingsProvider.notifier).toggleHideBalances(),
+        ),
+        const SizedBox(width: 4),
+        FolioIconButton(
           icon: Icons.auto_awesome_outlined,
-          tooltip: 'Aylık rapor',
-          label: 'Aylık raporu aç',
-          onPressed: () => context.push('/monthly-report'),
+          tooltip: 'Finansal özetler',
+          label: 'Finansal özetleri aç',
+          onPressed: () => _showDigestChoiceSheet(context),
         ),
         const SizedBox(width: 8),
         Semantics(
@@ -164,9 +195,15 @@ class _TopBar extends StatelessWidget {
 }
 
 class _HeroSummary extends StatelessWidget {
-  const _HeroSummary({required this.analytics, required this.month});
+  const _HeroSummary({
+    required this.analytics,
+    required this.month,
+    this.hideBalances = false,
+  });
+
   final WalletAnalytics analytics;
   final DateTime month;
+  final bool hideBalances;
 
   @override
   Widget build(BuildContext context) {
@@ -213,7 +250,7 @@ class _HeroSummary extends StatelessWidget {
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
           child: Text(
-            Formatters.money(analytics.monthExpense),
+            hideBalances ? '•••• ₺' : Formatters.money(analytics.monthExpense),
             style: theme.textTheme.displayLarge?.copyWith(fontSize: 58),
           ),
         ),
@@ -237,7 +274,7 @@ class _HeroSummary extends StatelessWidget {
                   target: TourTarget.incomeMetric,
                   child: _HeroMetric(
                     label: 'Gelir',
-                    value: Formatters.money(analytics.monthIncome),
+                    value: hideBalances ? '•••• ₺' : Formatters.money(analytics.monthIncome),
                     // Everything that reports what is left is income minus
                     // expense, so the figure people need to correct first is
                     // this one. Tapping it goes straight to the income form.
@@ -253,7 +290,7 @@ class _HeroSummary extends StatelessWidget {
               Expanded(
                 child: _HeroMetric(
                   label: 'Sende kaldı',
-                  value: Formatters.money(analytics.savings),
+                  value: hideBalances ? '•••• ₺' : Formatters.money(analytics.savings),
                 ),
               ),
             ],
@@ -422,8 +459,13 @@ class _InlineMetric extends StatelessWidget {
 }
 
 class _BalancePanel extends StatelessWidget {
-  const _BalancePanel({required this.analytics});
+  const _BalancePanel({
+    required this.analytics,
+    this.hideBalances = false,
+  });
+
   final WalletAnalytics analytics;
+  final bool hideBalances;
 
   @override
   Widget build(BuildContext context) {
@@ -436,6 +478,7 @@ class _BalancePanel extends StatelessWidget {
         : 'Bu ay gider yoğunluğu daha yüksek seyrediyor.';
 
     return PremiumSurface(
+      onTap: () => showFinancialScoreSheet(context, analytics: analytics),
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -478,9 +521,19 @@ class _BalancePanel extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(
-                      'Finansal denge',
-                      style: theme.textTheme.headlineSmall,
+                    Row(
+                      children: <Widget>[
+                        Text(
+                          'Finansal denge',
+                          style: theme.textTheme.headlineSmall,
+                        ),
+                        const Spacer(),
+                        Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 13,
+                          color: AppColors.tertiary(theme.brightness),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -529,7 +582,7 @@ class _BalancePanel extends StatelessWidget {
               Expanded(
                 child: _InlineMetric(
                   label: 'Sende kalan',
-                  value: Formatters.money(analytics.savings),
+                  value: hideBalances ? '•••• ₺' : Formatters.money(analytics.savings),
                 ),
               ),
             ],
@@ -541,8 +594,13 @@ class _BalancePanel extends StatelessWidget {
 }
 
 class _CategorySection extends StatelessWidget {
-  const _CategorySection({required this.analytics});
+  const _CategorySection({
+    required this.analytics,
+    required this.wallet,
+  });
+
   final WalletAnalytics analytics;
+  final WalletSnapshot wallet;
 
   @override
   Widget build(BuildContext context) {
@@ -589,6 +647,23 @@ class _CategorySection extends StatelessWidget {
                             ? 0
                             : entries[i].value / analytics.monthExpense,
                         rank: i + 1,
+                        onTap: () {
+                          BudgetRecord? categoryBudget;
+                          for (final BudgetRecord b in wallet.budgets) {
+                            if (b.category == entries[i].key) {
+                              categoryBudget = b;
+                              break;
+                            }
+                          }
+                          showCategoryDetailSheet(
+                            context,
+                            category: entries[i].key,
+                            amount: entries[i].value,
+                            totalExpense: analytics.monthExpense,
+                            transactions: wallet.transactions,
+                            budget: categoryBudget,
+                          );
+                        },
                       ),
                       if (i != entries.length - 1)
                         Divider(
@@ -608,8 +683,13 @@ class _CategorySection extends StatelessWidget {
 }
 
 class _RecentSection extends StatelessWidget {
-  const _RecentSection({required this.transactions});
+  const _RecentSection({
+    required this.transactions,
+    this.hideBalances = false,
+  });
+
   final List<TransactionRecord> transactions;
+  final bool hideBalances;
 
   @override
   Widget build(BuildContext context) {
@@ -648,7 +728,7 @@ class _RecentSection extends StatelessWidget {
                               transaction: item,
                               compact: true,
                               onTap: () =>
-                                  context.push('/transaction/${item.id}'),
+                                   context.push('/transaction/${item.id}'),
                             ),
                             if (!last)
                               Divider(
@@ -677,24 +757,36 @@ class _QuickLinks extends StatelessWidget {
       0,
       (double total, SubscriptionRecord item) => total + item.monthlyAmount,
     );
-    return Row(
+
+    return Column(
       children: <Widget>[
-        Expanded(
-          child: _QuickLink(
-            icon: Icons.donut_large_rounded,
-            title: 'Bütçeler',
-            value: '${wallet.budgets.length} aktif sınır',
-            onTap: () => context.push('/budgets'),
-          ),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: _QuickLink(
+                icon: Icons.donut_large_rounded,
+                title: 'Bütçeler',
+                value: '${wallet.budgets.length} aktif sınır',
+                onTap: () => context.push('/budgets'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _QuickLink(
+                icon: Icons.savings_outlined,
+                title: 'Hedefler',
+                value: '${wallet.goals.length} aktif kasa',
+                onTap: () => context.push('/goals'),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _QuickLink(
-            icon: Icons.repeat_rounded,
-            title: 'Abonelikler',
-            value: '${Formatters.money(monthlySubscriptions)} / ay',
-            onTap: () => context.push('/subscriptions'),
-          ),
+        const SizedBox(height: 12),
+        _QuickLink(
+          icon: Icons.repeat_rounded,
+          title: 'Abonelikler & Tekrarlayan Giderler',
+          value: '${Formatters.money(monthlySubscriptions)} / ay · ${wallet.subscriptions.length} aktif abonelik',
+          onTap: () => context.push('/subscriptions'),
         ),
       ],
     );
@@ -708,6 +800,7 @@ class _QuickLink extends StatelessWidget {
     required this.value,
     required this.onTap,
   });
+
   final IconData icon;
   final String title;
   final String value;
@@ -720,18 +813,29 @@ class _QuickLink extends StatelessWidget {
       onTap: onTap,
       padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
       radius: AppSpacing.radiusMd,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: <Widget>[
-          Icon(icon, size: 19, color: AppColors.accent(theme.brightness)),
-          const SizedBox(height: 14),
-          Text(title, style: theme.textTheme.titleMedium),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Icon(icon, size: 19, color: AppColors.accent(theme.brightness)),
+                const SizedBox(height: 12),
+                Text(title, style: theme.textTheme.titleMedium),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            Icons.arrow_forward_ios_rounded,
+            size: 13,
+            color: AppColors.tertiary(theme.brightness),
           ),
         ],
       ),
@@ -921,6 +1025,133 @@ class _ErrorState extends StatelessWidget {
             TextButton(onPressed: onRetry, child: const Text('Yeniden dene')),
           ],
         ),
+      ),
+    );
+  }
+}
+
+void _showDigestChoiceSheet(BuildContext context) {
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    barrierColor: Colors.black.withValues(alpha: 0.35),
+    builder: (BuildContext ctx) => Container(
+      decoration: BoxDecoration(
+        color: AppColors.elevated(Theme.of(ctx).brightness),
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppSpacing.radiusSheet),
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(22, 16, 22, 34),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Center(
+            child: Container(
+              width: 38,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: AppColors.tertiary(Theme.of(ctx).brightness).withValues(alpha: 0.45),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+          ),
+          Text('Finansal Hikâyeler', style: Theme.of(ctx).textTheme.headlineMedium),
+          const SizedBox(height: 6),
+          Text(
+            'Dönem performansını dinamik hikâye kartlarıyla incele.',
+            style: Theme.of(ctx).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 20),
+          _StoryChoiceTile(
+            icon: Icons.view_carousel_outlined,
+            tone: AppColors.coffee,
+            title: 'Haftalık Finansal Özet',
+            subtitle: 'Son 7 günün harcama ritmi ve lider kategorisi.',
+            onTap: () {
+              Navigator.pop(ctx);
+              context.push('/weekly-report');
+            },
+          ),
+          const SizedBox(height: 10),
+          _StoryChoiceTile(
+            icon: Icons.auto_awesome_outlined,
+            tone: AppColors.sage,
+            title: 'Aylık Finansal Rapor',
+            subtitle: 'Seçili ayın tüm gelir, gider ve tasarruf hikayesi.',
+            onTap: () {
+              Navigator.pop(ctx);
+              context.push('/monthly-report');
+            },
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _StoryChoiceTile extends StatelessWidget {
+  const _StoryChoiceTile({
+    required this.icon,
+    required this.tone,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color tone;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return PremiumSurface(
+      elevated: true,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      onTap: onTap,
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: tone.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, size: 22, color: tone),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Icon(
+            Icons.arrow_forward_ios_rounded,
+            size: 14,
+            color: AppColors.tertiary(theme.brightness),
+          ),
+        ],
       ),
     );
   }

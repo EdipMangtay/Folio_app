@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/utils/formatters.dart';
 import '../../domain/tour/tour_step.dart';
 import '../../domain/models/transaction_record.dart';
 import '../../domain/models/wallet_snapshot.dart';
+import '../../state/settings_controller.dart';
 import '../../state/wallet_controller.dart';
 import '../tour/tour_anchor.dart';
 import '../widgets/folio_background.dart';
@@ -15,6 +17,8 @@ import '../widgets/folio_page.dart';
 import '../widgets/loading_view.dart';
 import '../widgets/premium_surface.dart';
 import '../widgets/transaction_row.dart';
+
+enum _TransactionSort { newest, oldest, highest, lowest }
 
 class TransactionsScreen extends ConsumerStatefulWidget {
   const TransactionsScreen({super.key});
@@ -26,6 +30,8 @@ class TransactionsScreen extends ConsumerStatefulWidget {
 class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _filter = 'Tümü';
+  String? _selectedCategory;
+  _TransactionSort _sort = _TransactionSort.newest;
 
   @override
   void dispose() {
@@ -36,6 +42,10 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   @override
   Widget build(BuildContext context) {
     final AsyncValue<WalletSnapshot> wallet = ref.watch(walletProvider);
+    final bool hideBalances = ref.watch(
+      settingsProvider.select((SettingsState value) => value.hideBalances),
+    );
+
     return wallet.when(
       loading: () => const LoadingView(),
       error: (Object error, StackTrace stack) => Center(
@@ -53,6 +63,10 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
             .where((TransactionRecord e) => e.isIncome)
             .fold<double>(0, (double a, TransactionRecord b) => a + b.amount);
 
+        final Set<String> availableCategories = snapshot.transactions
+            .map((TransactionRecord e) => e.category)
+            .toSet();
+
         return FolioBackground(
           accentAlignment: const Alignment(-0.95, -0.92),
           child: CustomScrollView(
@@ -69,22 +83,61 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text(
-                        'İşlemler',
-                        style: Theme.of(context).textTheme.headlineLarge,
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  'İşlemler',
+                                  style: Theme.of(context).textTheme.headlineLarge,
+                                ),
+                                const SizedBox(height: 5),
+                                Text(
+                                  '${filtered.length} hareket listeleniyor',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                          PopupMenuButton<_TransactionSort>(
+                            icon: Icon(
+                              Icons.sort_rounded,
+                              size: 20,
+                              color: AppColors.muted(Theme.of(context).brightness),
+                            ),
+                            tooltip: 'Sırala',
+                            initialValue: _sort,
+                            onSelected: (_TransactionSort value) => setState(() => _sort = value),
+                            itemBuilder: (BuildContext context) => <PopupMenuEntry<_TransactionSort>>[
+                              const PopupMenuItem<_TransactionSort>(
+                                value: _TransactionSort.newest,
+                                child: Text('En Yeni'),
+                              ),
+                              const PopupMenuItem<_TransactionSort>(
+                                value: _TransactionSort.oldest,
+                                child: Text('En Eski'),
+                              ),
+                              const PopupMenuItem<_TransactionSort>(
+                                value: _TransactionSort.highest,
+                                child: Text('En Yüksek Tutar'),
+                              ),
+                              const PopupMenuItem<_TransactionSort>(
+                                value: _TransactionSort.lowest,
+                                child: Text('En Düşük Tutar'),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 7),
-                      Text(
-                        'Tüm para hareketlerin, arama ve filtrelerle tek akışta.',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
                       Row(
                         children: <Widget>[
                           Expanded(
                             child: _SummaryPill(
                               label: 'Gider',
-                              value: Formatters.money(expense),
+                              value: hideBalances ? '•••• ₺' : Formatters.money(expense),
                               tone: AppColors.coral,
                             ),
                           ),
@@ -92,7 +145,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                           Expanded(
                             child: _SummaryPill(
                               label: 'Gelir',
-                              value: Formatters.money(income),
+                              value: hideBalances ? '•••• ₺' : Formatters.money(income),
                               tone: AppColors.sage,
                             ),
                           ),
@@ -113,6 +166,36 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                               setState(() => _filter = value),
                         ),
                       ),
+                      if (availableCategories.isNotEmpty) ...<Widget>[
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          height: 34,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            children: <Widget>[
+                              _CategoryFilterChip(
+                                label: 'Tüm Kategoriler',
+                                isSelected: _selectedCategory == null,
+                                onTap: () => setState(() => _selectedCategory = null),
+                              ),
+                              const SizedBox(width: 6),
+                              ...availableCategories.map((String cat) {
+                                final bool isSelected = _selectedCategory == cat;
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 6),
+                                  child: _CategoryFilterChip(
+                                    label: cat,
+                                    isSelected: isSelected,
+                                    onTap: () => setState(() {
+                                      _selectedCategory = isSelected ? null : cat;
+                                    }),
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -164,11 +247,11 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                   itemBuilder: (BuildContext context, int index) {
                     final TransactionRecord item = filtered[index];
                     final bool showHeader =
-                        index == 0 ||
-                        !_sameDay(item.date, filtered[index - 1].date);
+                        _sort == _TransactionSort.newest &&
+                        (index == 0 || !_sameDay(item.date, filtered[index - 1].date));
                     final bool nextDifferentDay =
-                        index == filtered.length - 1 ||
-                        !_sameDay(item.date, filtered[index + 1].date);
+                        _sort == _TransactionSort.newest &&
+                        (index == filtered.length - 1 || !_sameDay(item.date, filtered[index + 1].date));
                     return Center(
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(
@@ -233,7 +316,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   List<TransactionRecord> _apply(List<TransactionRecord> source) {
     final DateTime now = DateTime.now();
     final String query = _searchController.text.trim().toLowerCase();
-    return source
+    final List<TransactionRecord> list = source
         .where((TransactionRecord item) {
           final bool queryMatch =
               query.isEmpty ||
@@ -241,6 +324,9 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
               item.category.toLowerCase().contains(query) ||
               (item.merchant?.toLowerCase().contains(query) ?? false);
           if (!queryMatch) return false;
+          if (_selectedCategory != null && item.category != _selectedCategory) {
+            return false;
+          }
           switch (_filter) {
             case 'Bu hafta':
               final DateTime start = DateTime(
@@ -259,7 +345,20 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
               return true;
           }
         })
-        .toList(growable: false);
+        .toList(growable: true);
+
+    switch (_sort) {
+      case _TransactionSort.newest:
+        list.sort((TransactionRecord a, TransactionRecord b) => b.date.compareTo(a.date));
+      case _TransactionSort.oldest:
+        list.sort((TransactionRecord a, TransactionRecord b) => a.date.compareTo(b.date));
+      case _TransactionSort.highest:
+        list.sort((TransactionRecord a, TransactionRecord b) => b.amount.compareTo(a.amount));
+      case _TransactionSort.lowest:
+        list.sort((TransactionRecord a, TransactionRecord b) => a.amount.compareTo(b.amount));
+    }
+
+    return list;
   }
 
   bool _sameDay(DateTime a, DateTime b) =>
@@ -273,6 +372,52 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     if (diff == 0) return 'BUGÜN';
     if (diff == 1) return 'DÜN';
     return Formatters.fullDate(date).toUpperCase();
+  }
+}
+
+class _CategoryFilterChip extends StatelessWidget {
+  const _CategoryFilterChip({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(99),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? theme.colorScheme.onSurface
+              : AppColors.elevated(theme.brightness),
+          borderRadius: BorderRadius.circular(99),
+          border: Border.all(
+            color: isSelected
+                ? Colors.transparent
+                : theme.dividerColor.withValues(alpha: 0.65),
+            width: 0.65,
+          ),
+        ),
+        child: Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: isSelected
+                ? theme.scaffoldBackgroundColor
+                : theme.colorScheme.onSurface,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
   }
 }
 

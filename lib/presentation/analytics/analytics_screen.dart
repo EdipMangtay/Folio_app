@@ -1,18 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/utils/formatters.dart';
 import '../../domain/analytics/analytics_engine.dart';
 import '../../domain/analytics/month_scope.dart';
+import '../../domain/models/budget_record.dart';
 import '../../domain/models/transaction_record.dart';
 import '../../domain/models/wallet_snapshot.dart';
 import '../../state/month_scope_controller.dart';
+import '../../state/settings_controller.dart';
 import '../../state/wallet_controller.dart';
 import '../add/add_transaction_sheet.dart';
 import '../widgets/cash_flow_comparison_chart.dart';
+import '../widgets/category_detail_sheet.dart';
+import '../widgets/category_spend_row.dart';
 import '../widgets/empty_month_notice.dart';
+import '../widgets/financial_score_sheet.dart';
 import '../widgets/folio_background.dart';
 import '../widgets/folio_page.dart';
 import '../widgets/loading_view.dart';
@@ -29,6 +35,10 @@ class AnalyticsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final AsyncValue<WalletSnapshot> wallet = ref.watch(walletProvider);
     final DateTime selectedMonth = ref.watch(selectedMonthProvider);
+    final bool hideBalances = ref.watch(
+      settingsProvider.select((SettingsState value) => value.hideBalances),
+    );
+
     return wallet.when(
       loading: () => const LoadingView(),
       error: (Object error, StackTrace stack) => const Center(child: Text('Analiz açılamadı.')),
@@ -37,6 +47,8 @@ class AnalyticsScreen extends ConsumerWidget {
           snapshot.transactions,
           now: MonthScope.anchorFor(selectedMonth, now: DateTime.now()),
         );
+        final List<MapEntry<String, double>> topCategories = analytics.categoryTotals.entries.take(5).toList();
+
         return FolioBackground(
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
@@ -58,7 +70,114 @@ class AnalyticsScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 18),
                   ],
-                  _OverviewCard(analytics: analytics, month: selectedMonth),
+                  _OverviewCard(
+                    analytics: analytics,
+                    month: selectedMonth,
+                    hideBalances: hideBalances,
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: PremiumSurface(
+                          elevated: true,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          onTap: () => context.push('/weekly-report'),
+                          child: Row(
+                            children: <Widget>[
+                              Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  color: AppColors.coffee.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                alignment: Alignment.center,
+                                child: const Icon(
+                                  Icons.view_carousel_outlined,
+                                  size: 18,
+                                  color: AppColors.coffee,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    Text(
+                                      'Haftalık Özet',
+                                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '7 günlük hikâye',
+                                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                        color: AppColors.muted(Theme.of(context).brightness),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: PremiumSurface(
+                          elevated: true,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          onTap: () => context.push('/monthly-report'),
+                          child: Row(
+                            children: <Widget>[
+                              Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  color: AppColors.sage.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                alignment: Alignment.center,
+                                child: const Icon(
+                                  Icons.auto_awesome_outlined,
+                                  size: 18,
+                                  color: AppColors.sage,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    Text(
+                                      'Aylık Özet',
+                                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Dönem hikâyesi',
+                                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                        color: AppColors.muted(Theme.of(context).brightness),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.section),
+                  _FinancialScoreCard(
+                    analytics: analytics,
+                    onTap: () => showFinancialScoreSheet(context, analytics: analytics),
+                  ),
                   const SizedBox(height: AppSpacing.section),
                   const SectionHeader(title: 'Günlük harcama', subtitle: 'Seçili dönemde her günün harcaması. Kesikli çizgi günlük ortalaman.'),
                   const SizedBox(height: 14),
@@ -87,7 +206,7 @@ class AnalyticsScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.section),
-                  const SectionHeader(title: 'Harcama dağılımı', subtitle: 'Toplam giderin hangi kategorilerde toplandığını gör.'),
+                  const SectionHeader(title: 'Harcama dağılımı', subtitle: 'Toplam giderin hangi kategorilerde toplandığını gör. Detay için kategoriye dokun.'),
                   const SizedBox(height: 14),
                   PremiumSurface(
                     elevated: true,
@@ -97,9 +216,41 @@ class AnalyticsScreen extends ConsumerWidget {
                             padding: EdgeInsets.symmetric(vertical: 12),
                             child: Text('Bu dönemde kategori dağılımı yok.'),
                           )
-                        : SpendingCompositionChart(
-                            categoryTotals: analytics.categoryTotals,
-                            total: analytics.monthExpense,
+                        : Column(
+                            children: <Widget>[
+                              SpendingCompositionChart(
+                                categoryTotals: analytics.categoryTotals,
+                                total: analytics.monthExpense,
+                              ),
+                              Divider(height: 1, thickness: 0.7, color: Theme.of(context).dividerColor),
+                              for (int i = 0; i < topCategories.length; i++) ...<Widget>[
+                                CategorySpendRow(
+                                  category: topCategories[i].key,
+                                  amount: topCategories[i].value,
+                                  share: analytics.monthExpense <= 0 ? 0 : topCategories[i].value / analytics.monthExpense,
+                                  rank: i + 1,
+                                  onTap: () {
+                                    BudgetRecord? categoryBudget;
+                                    for (final BudgetRecord b in snapshot.budgets) {
+                                      if (b.category == topCategories[i].key) {
+                                        categoryBudget = b;
+                                        break;
+                                      }
+                                    }
+                                    showCategoryDetailSheet(
+                                      context,
+                                      category: topCategories[i].key,
+                                      amount: topCategories[i].value,
+                                      totalExpense: analytics.monthExpense,
+                                      transactions: snapshot.transactions,
+                                      budget: categoryBudget,
+                                    );
+                                  },
+                                ),
+                                if (i != topCategories.length - 1)
+                                  Divider(height: 1, thickness: 0.7, color: Theme.of(context).dividerColor.withValues(alpha: 0.7)),
+                              ],
+                            ],
                           ),
                   ),
                   const SizedBox(height: AppSpacing.section),
@@ -118,10 +269,83 @@ class AnalyticsScreen extends ConsumerWidget {
   }
 }
 
+class _FinancialScoreCard extends StatelessWidget {
+  const _FinancialScoreCard({required this.analytics, required this.onTap});
+
+  final WalletAnalytics analytics;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final Color tone = AppColors.pulseForScore(analytics.financialScore);
+
+    return PremiumSurface(
+      onTap: onTap,
+      elevated: true,
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              color: tone.withValues(alpha: theme.brightness == Brightness.dark ? 0.16 : 0.10),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            ),
+            alignment: Alignment.center,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  '${analytics.financialScore}',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: tone,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  'Skor',
+                  style: theme.textTheme.labelSmall?.copyWith(color: tone, fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text('Finansal Sağlık Skoru', style: theme.textTheme.titleMedium),
+                const SizedBox(height: 3),
+                Text(
+                  'Tasarruf, bütçe uyumu ve düzenlilik analizi',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            Icons.arrow_forward_ios_rounded,
+            size: 14,
+            color: AppColors.tertiary(theme.brightness),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _OverviewCard extends StatelessWidget {
-  const _OverviewCard({required this.analytics, required this.month});
+  const _OverviewCard({
+    required this.analytics,
+    required this.month,
+    this.hideBalances = false,
+  });
+
   final WalletAnalytics analytics;
   final DateTime month;
+  final bool hideBalances;
 
   @override
   Widget build(BuildContext context) {
@@ -142,7 +366,10 @@ class _OverviewCard extends StatelessWidget {
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
-            child: Text(Formatters.money(analytics.monthExpense), style: theme.textTheme.displayMedium),
+            child: Text(
+              hideBalances ? '•••• ₺' : Formatters.money(analytics.monthExpense),
+              style: theme.textTheme.displayMedium,
+            ),
           ),
           const SizedBox(height: 6),
           Text('toplam harcama', style: theme.textTheme.bodySmall),
@@ -154,7 +381,7 @@ class _OverviewCard extends StatelessWidget {
               Expanded(
                 child: _Metric(
                   label: 'Gelir',
-                  value: Formatters.money(analytics.monthIncome),
+                  value: hideBalances ? '•••• ₺' : Formatters.money(analytics.monthIncome),
                   onTap: () => showAddTransactionSheet(
                     context,
                     initialType: TransactionType.income,
@@ -162,9 +389,19 @@ class _OverviewCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 16),
-              Expanded(child: _Metric(label: 'Sende kalan', value: Formatters.money(analytics.savings))),
+              Expanded(
+                child: _Metric(
+                  label: 'Sende kalan',
+                  value: hideBalances ? '•••• ₺' : Formatters.money(analytics.savings),
+                ),
+              ),
               const SizedBox(width: 16),
-              Expanded(child: _Metric(label: 'Tasarruf', value: '%${analytics.savingsRate.toStringAsFixed(0)}')),
+              Expanded(
+                child: _Metric(
+                  label: 'Tasarruf',
+                  value: '%${analytics.savingsRate.toStringAsFixed(0)}',
+                ),
+              ),
             ],
           ),
         ],
