@@ -71,10 +71,22 @@ class _AppShellState extends ConsumerState<AppShell> {
         setState(() => _highlight = null);
         return;
       }
-      if (_index != step.tab) _goBranch(step.tab);
-      await Future<void>.delayed(FolioMotion.tab + const Duration(milliseconds: 32));
+      if (_index != step.tab) {
+        _goBranch(step.tab);
+        await Future<void>.delayed(FolioMotion.tab + const Duration(milliseconds: 32));
+      }
       if (!mounted) return;
-      setState(() => _highlight = ref.read(tourTargetRegistryProvider).rectOf(step.target));
+      final TourTargetRegistry registry = ref.read(tourTargetRegistryProvider);
+      registry.ensureVisible(step.target);
+      setState(() => _highlight = registry.rectOf(step.target));
+
+      // Re-measure after scroll animation settles so highlight is 100% pixel-perfect.
+      await Future<void>.delayed(const Duration(milliseconds: 260));
+      if (!mounted || tour.index != _measuredFor) return;
+      final Rect? settledRect = registry.rectOf(step.target);
+      if (settledRect != null && settledRect != _highlight) {
+        setState(() => _highlight = settledRect);
+      }
     });
   }
 
@@ -159,6 +171,7 @@ class _AppShellState extends ConsumerState<AppShell> {
               ref.read(tourProvider.notifier).next();
             }
           },
+          onPrevious: () => ref.read(tourProvider.notifier).previous(),
           onSkip: _finishTour,
           onIncome: _saveIncome,
         ),

@@ -20,14 +20,35 @@ class TourTargetRegistry {
     if (identical(_keys[target], key)) _keys.remove(target);
   }
 
+  /// Returns the current context of the registered target if mounted.
+  BuildContext? contextOf(TourTarget target) => _keys[target]?.currentContext;
+
   /// The target's position in global coordinates, or null when it is not on
   /// screen or has not been laid out yet.
   Rect? rectOf(TourTarget target) {
-    final BuildContext? context = _keys[target]?.currentContext;
+    final BuildContext? context = contextOf(target);
     if (context == null) return null;
     final RenderObject? object = context.findRenderObject();
     if (object is! RenderBox || !object.hasSize || !object.attached) return null;
     return object.localToGlobal(Offset.zero) & object.size;
+  }
+
+  /// Ensures that if the target is within a scrollable container, it is brought
+  /// comfortably into view.
+  void ensureVisible(TourTarget target) {
+    final BuildContext? context = contextOf(target);
+    if (context != null && context.mounted) {
+      try {
+        Scrollable.ensureVisible(
+          context,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          alignment: 0.25,
+        );
+      } catch (_) {
+        // Target is not inside a scrollable view or already settled.
+      }
+    }
   }
 }
 

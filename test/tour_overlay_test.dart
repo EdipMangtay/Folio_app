@@ -21,6 +21,7 @@ Future<void> _pump(
   int total = 6,
   VoidCallback? onNext,
   VoidCallback? onSkip,
+  VoidCallback? onPrevious,
 }) async {
   tester.view.physicalSize = const Size(420, 900);
   tester.view.devicePixelRatio = 1.0;
@@ -38,6 +39,7 @@ Future<void> _pump(
           total: total,
           onNext: onNext ?? () {},
           onSkip: onSkip ?? () {},
+          onPrevious: onPrevious,
           onIncome: (double a, String s) async {},
         ),
       ),
@@ -75,6 +77,23 @@ void main() {
       tester.getSize(find.widgetWithText(FilledButton, 'İleri')).height,
       greaterThanOrEqualTo(44),
     );
+  });
+
+  testWidgets('previous button is shown and reachable when position > 1', (WidgetTester tester) async {
+    int previous = 0;
+    await _pump(
+      tester,
+      step: _spot,
+      highlight: const Rect.fromLTWH(10, 800, 80, 50),
+      position: 2,
+      onPrevious: () => previous++,
+    );
+
+    expect(find.byTooltip('Önceki'), findsOneWidget);
+    await tester.tap(find.byTooltip('Önceki'));
+    await tester.pump();
+
+    expect(previous, 1);
   });
 
   testWidgets('a spotlight stop says how far along the tour is', (
