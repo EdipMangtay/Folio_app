@@ -32,7 +32,6 @@ import '../widgets/premium_surface.dart';
 import '../widgets/section_header.dart';
 import '../widgets/spending_chart.dart';
 import '../widgets/spending_composition_chart.dart';
-import '../widgets/transaction_row.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -111,11 +110,6 @@ class DashboardScreen extends ConsumerWidget {
                         InsightBlock(insight: analytics.insights.first),
                         const SizedBox(height: AppSpacing.section),
                       ],
-                      _RecentSection(
-                        transactions: wallet.transactions,
-                        hideBalances: hideBalances,
-                      ),
-                      const SizedBox(height: AppSpacing.compactSection),
                       _QuickLinks(wallet: wallet),
                     ],
                   ),
@@ -283,6 +277,14 @@ class _HeroSummary extends StatelessWidget {
                       initialType: TransactionType.income,
                     ),
                   ),
+                ),
+              ),
+              Container(width: 1, height: 38, color: theme.dividerColor),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _HeroMetric(
+                  label: 'Harcama',
+                  value: hideBalances ? '•••• ₺' : Formatters.money(analytics.monthExpense),
                 ),
               ),
               Container(width: 1, height: 38, color: theme.dividerColor),
@@ -675,71 +677,6 @@ class _CategorySection extends StatelessWidget {
                         ),
                     ],
                   ],
-                ),
-        ),
-      ],
-    );
-  }
-}
-
-class _RecentSection extends StatelessWidget {
-  const _RecentSection({
-    required this.transactions,
-    this.hideBalances = false,
-  });
-
-  final List<TransactionRecord> transactions;
-  final bool hideBalances;
-
-  @override
-  Widget build(BuildContext context) {
-    final List<TransactionRecord> recent = transactions
-        .take(5)
-        .toList(growable: false);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        SectionHeader(
-          title: 'Son işlemler',
-          subtitle: 'Yakındaki hareketlerin.',
-          trailing: TextButton(
-            onPressed: () => context.go('/transactions'),
-            child: const Text('Tümü'),
-          ),
-        ),
-        const SizedBox(height: 12),
-        PremiumSurface(
-          elevated: true,
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-          child: recent.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.fromLTRB(8, 22, 8, 22),
-                  child: Text(
-                    'Henüz işlem yok. Fiş tarayarak, manuel girerek veya ekstre aktararak başlayabilirsin.',
-                  ),
-                )
-              : Column(
-                  children: recent
-                      .map((TransactionRecord item) {
-                        final bool last = identical(item, recent.last);
-                        return Column(
-                          children: <Widget>[
-                            TransactionRow(
-                              transaction: item,
-                              compact: true,
-                              onTap: () =>
-                                   context.push('/transaction/${item.id}'),
-                            ),
-                            if (!last)
-                              Divider(
-                                height: 1,
-                                thickness: 0.7,
-                                color: Theme.of(context).dividerColor,
-                              ),
-                          ],
-                        );
-                      })
-                      .toList(growable: false),
                 ),
         ),
       ],
