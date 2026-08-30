@@ -9,12 +9,14 @@ import '../../core/utils/formatters.dart';
 import '../../domain/tour/tour_step.dart';
 import '../../domain/models/transaction_record.dart';
 import '../../domain/models/wallet_snapshot.dart';
+import '../../state/month_scope_controller.dart';
 import '../../state/settings_controller.dart';
 import '../../state/wallet_controller.dart';
 import '../tour/tour_anchor.dart';
 import '../widgets/folio_background.dart';
 import '../widgets/folio_page.dart';
 import '../widgets/loading_view.dart';
+import '../widgets/month_selector.dart';
 import '../widgets/premium_surface.dart';
 import '../widgets/transaction_row.dart';
 
@@ -45,6 +47,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     final bool hideBalances = ref.watch(
       settingsProvider.select((SettingsState value) => value.hideBalances),
     );
+    final DateTime selectedMonth = ref.watch(selectedMonthProvider);
 
     return wallet.when(
       loading: () => const LoadingView(),
@@ -55,7 +58,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
         ),
       ),
       data: (WalletSnapshot snapshot) {
-        final List<TransactionRecord> filtered = _apply(snapshot.transactions);
+        final List<TransactionRecord> filtered = _apply(snapshot.transactions, selectedMonth);
         final double expense = filtered
             .where((TransactionRecord e) => e.isExpense)
             .fold<double>(0, (double a, TransactionRecord b) => a + b.amount);
@@ -132,6 +135,8 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                         ],
                       ),
                       const SizedBox(height: 20),
+                      const MonthSelector(),
+                      const SizedBox(height: 16),
                       Row(
                         children: <Widget>[
                           Expanded(
@@ -307,17 +312,19 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
 
   static const List<String> _filters = <String>[
     'Tümü',
-    'Bu hafta',
-    'Bu ay',
     'Gider',
     'Gelir',
   ];
 
-  List<TransactionRecord> _apply(List<TransactionRecord> source) {
-    final DateTime now = DateTime.now();
+  List<TransactionRecord> _apply(List<TransactionRecord> source, DateTime month) {
     final String query = _searchController.text.trim().toLowerCase();
     final List<TransactionRecord> list = source
         .where((TransactionRecord item) {
+          // The header totals have to describe the list beneath them, so the
+          // chosen month scopes both rather than the totals alone.
+          if (item.date.year != month.year || item.date.month != month.month) {
+            return false;
+          }
           final bool queryMatch =
               query.isEmpty ||
               item.title.toLowerCase().contains(query) ||
@@ -328,15 +335,6 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
             return false;
           }
           switch (_filter) {
-            case 'Bu hafta':
-              final DateTime start = DateTime(
-                now.year,
-                now.month,
-                now.day,
-              ).subtract(Duration(days: now.weekday - 1));
-              return !item.date.isBefore(start);
-            case 'Bu ay':
-              return item.date.year == now.year && item.date.month == now.month;
             case 'Gider':
               return item.isExpense;
             case 'Gelir':
